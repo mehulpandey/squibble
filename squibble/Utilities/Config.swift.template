@@ -1,0 +1,86 @@
+//
+//  Config.swift.template
+//  squibble
+//
+//  INSTRUCTIONS:
+//  1. Copy this file to Config.swift
+//  2. Replace placeholder values with your actual API keys
+//  3. Never commit Config.swift with real keys to git
+//
+
+import Foundation
+
+enum AppEnvironment {
+    case development
+    case production
+}
+
+struct Config {
+    // MARK: - Current Environment
+    #if DEBUG
+    static let current: AppEnvironment = .development
+    #else
+    static let current: AppEnvironment = .production
+    #endif
+
+    // MARK: - Supabase Configuration
+    struct Supabase {
+        static var url: String {
+            switch Config.current {
+            case .development:
+                return ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "YOUR_DEV_SUPABASE_URL"
+            case .production:
+                return ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "YOUR_PROD_SUPABASE_URL"
+            }
+        }
+
+        static var anonKey: String {
+            switch Config.current {
+            case .development:
+                return ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_DEV_SUPABASE_ANON_KEY"
+            case .production:
+                return ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_PROD_SUPABASE_ANON_KEY"
+            }
+        }
+    }
+
+    // MARK: - Google Sign-In Configuration
+    struct Google {
+        static var clientID: String {
+            return ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"] ?? "YOUR_GOOGLE_CLIENT_ID"
+        }
+    }
+
+    // MARK: - AdMob Configuration
+    struct AdMob {
+        static var appID: String {
+            switch Config.current {
+            case .development:
+                // Google's test App ID
+                return "ca-app-pub-3940256099942544~1458002511"
+            case .production:
+                return ProcessInfo.processInfo.environment["ADMOB_APP_ID"] ?? "YOUR_ADMOB_APP_ID"
+            }
+        }
+
+        static var bannerAdUnitID: String {
+            switch Config.current {
+            case .development:
+                // Google's test banner ad unit ID
+                return "ca-app-pub-3940256099942544/2934735716"
+            case .production:
+                return ProcessInfo.processInfo.environment["ADMOB_BANNER_AD_UNIT_ID"] ?? "YOUR_ADMOB_BANNER_AD_UNIT_ID"
+            }
+        }
+    }
+
+    // MARK: - App Group Identifier
+    static let appGroupIdentifier = "group.mehulpandey.squibble"
+
+    // MARK: - Deep Link Configuration
+    struct DeepLink {
+        static let scheme = "squibble"
+        static let host = "squibble.app"
+        static let addFriendPath = "/add/"
+    }
+}

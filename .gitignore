@@ -1,0 +1,82 @@
+# Xcode
+.DS_Store
+*/build/*
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+*.xcscmblueprint
+
+# CocoaPods
+Pods/
+*.xcworkspace
+
+# Carthage
+Carthage/Build/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/
+
+# Sensitive files - NEVER commit these
+.mcp.json
+*.p8
+*.p12
+*.pem
+*.key
+.env
+.env.*
+secrets/
+Secrets/
+
+# Config with real API keys (use Config.swift.template as reference)
+# Uncomment if you want to exclude Config.swift entirely:
+# squibble/Utilities/Config.swift
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Archives
+*.xcarchive
+
+# Crash logs
+*.crash
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Test output
+test_output/
+docs/test-user-credentials
+"action items for mehul.txt"
+
+# Config with real API keys (use Config.swift.template as reference)
+squibble/Utilities/Config.swift
