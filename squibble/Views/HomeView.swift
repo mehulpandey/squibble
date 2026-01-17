@@ -25,6 +25,14 @@ struct HomeView: View {
     @State private var showMoreOptions = false
     @State private var selectedFavoriteIndex: Int = 0
 
+    // Pending navigation after sheet dismissal
+    @State private var pendingNavigation: PendingNavigation? = nil
+
+    private enum PendingNavigation {
+        case addFriends
+        case upgrade
+    }
+
     // Consistent spacing value used throughout
     private let elementSpacing: CGFloat = 16
 
@@ -70,11 +78,14 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.modalGradient)
         }
-        .sheet(isPresented: $showSendSheet) {
+        .sheet(isPresented: $showSendSheet, onDismiss: handleSheetDismiss) {
             SendSheet(
                 drawingState: drawingState,
                 isPresented: $showSendSheet,
-                onAddFriends: { showAddFriends = true }
+                onAddFriends: {
+                    pendingNavigation = .addFriends
+                    showSendSheet = false
+                }
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
@@ -83,10 +94,13 @@ struct HomeView: View {
         .sheet(isPresented: $showAddFriends) {
             AddFriendsView()
         }
-        .sheet(isPresented: $showMoreOptions) {
+        .sheet(isPresented: $showMoreOptions, onDismiss: handleSheetDismiss) {
             MoreOptionsSheet(
                 drawingState: drawingState,
-                onShowUpgrade: { showUpgrade = true }
+                onShowUpgrade: {
+                    pendingNavigation = .upgrade
+                    showMoreOptions = false
+                }
             )
             .presentationDetents([.height(320)])
             .presentationDragIndicator(.visible)
@@ -452,6 +466,22 @@ struct HomeView: View {
         .buttonStyle(ScaleButtonStyle())
     }
 
+    // MARK: - Sheet Dismissal Handler
+
+    private func handleSheetDismiss() {
+        guard let navigation = pendingNavigation else { return }
+        pendingNavigation = nil
+
+        // Small delay to ensure previous sheet is fully dismissed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            switch navigation {
+            case .addFriends:
+                showAddFriends = true
+            case .upgrade:
+                showUpgrade = true
+            }
+        }
+    }
 }
 
 #Preview {

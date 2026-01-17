@@ -118,10 +118,7 @@ struct SendSheet: View {
             }
 
             Button(action: {
-                isPresented = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onAddFriends?()
-                }
+                onAddFriends?()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "person.badge.plus")

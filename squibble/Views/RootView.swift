@@ -72,12 +72,13 @@ struct RootView: View {
     private func loadUserDataAndCheckOnboarding() async {
         guard let userID = authManager.currentUserID else { return }
 
-        await userManager.loadUser(id: userID)
-        await friendManager.loadFriends(for: userID)
-        await doodleManager.loadDoodles(for: userID)
+        // Load user data in parallel for faster startup
+        async let userTask: () = userManager.loadUser(id: userID)
+        async let friendsTask: () = friendManager.loadFriends(for: userID)
+        async let doodlesTask: () = doodleManager.loadDoodles(for: userID)
 
-        // Update widget with latest received doodle on app launch
-        await doodleManager.updateWidgetWithLatestDoodle(friends: friendManager.friends)
+        // Wait for all to complete
+        _ = await (userTask, friendsTask, doodlesTask)
 
         // Check if user needs onboarding BEFORE showing authenticated view
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -87,9 +88,15 @@ struct RootView: View {
             isLoadingUserData = false
         }
 
-        // Set up realtime subscriptions
-        await setupRealtimeCallbacks(userID: userID)
-        await RealtimeService.shared.connect(userID: userID)
+        // These can run after UI is shown - don't block loading
+        Task.detached(priority: .utility) {
+            // Update widget with latest received doodle
+            await self.doodleManager.updateWidgetWithLatestDoodle(friends: self.friendManager.friends)
+
+            // Set up and connect realtime subscriptions
+            await self.setupRealtimeCallbacks(userID: userID)
+            await RealtimeService.shared.connect(userID: userID)
+        }
     }
 
     // MARK: - Realtime Callbacks

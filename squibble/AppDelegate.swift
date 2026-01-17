@@ -8,6 +8,7 @@
 import UIKit
 import UserNotifications
 import GoogleSignIn
+import GoogleMobileAds
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
@@ -21,12 +22,40 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Configure Google Sign-In
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: Config.Google.clientID)
 
+        // IMPORTANT: Warm up the network stack immediately
+        // On first launch after install, iOS delays network initialization until first request.
+        // This can cause 5-10s delays. By making a tiny request early, we trigger
+        // initialization in parallel with other app setup.
+        Task.detached(priority: .high) {
+            await Self.warmupNetworkStack()
+        }
+
+        // Initialize Google Mobile Ads SDK in background to avoid blocking app launch
+        // This preloads the ad framework so first ad display is faster
+        Task.detached(priority: .utility) {
+            await MobileAds.shared.start()
+        }
+
         // Check notification authorization and re-register if already authorized
         Task {
             await NotificationManager.shared.checkAuthorizationStatus()
         }
 
         return true
+    }
+
+    /// Makes a minimal network request to trigger iOS network stack initialization
+    private static func warmupNetworkStack() async {
+        // Use a simple HEAD request to minimize data transfer
+        // The Supabase health endpoint is fast and doesn't require auth
+        guard let url = URL(string: "\(Config.Supabase.url)/rest/v1/") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 30
+
+        // We don't care about the result - just triggering network init
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     // MARK: - URL Handling for Google Sign-In

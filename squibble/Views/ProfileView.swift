@@ -344,7 +344,13 @@ struct ActivityCalendarView: View {
     @State private var currentMonth = Date()
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-    private let weekdays = ["S", "M", "T", "W", "T", "F", "S"]
+    private let weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"]
+
+    // Wrapper for calendar day cells with unique IDs
+    private struct CalendarCell: Identifiable {
+        let id: Int  // Position index (0-41 for 6 weeks max)
+        let date: Date?
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -374,20 +380,20 @@ struct ActivityCalendarView: View {
                 .disabled(!canGoForward)
             }
 
-            // Weekday headers
+            // Weekday headers - use indices for unique IDs
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(weekdays, id: \.self) { day in
-                    Text(day)
+                ForEach(0..<7, id: \.self) { index in
+                    Text(weekdayLabels[index])
                         .font(.custom("Avenir-Medium", size: 11))
                         .foregroundColor(AppTheme.textSecondary)
                         .frame(height: 20)
                 }
             }
 
-            // Calendar grid
+            // Calendar grid - use CalendarCell for unique IDs
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(daysInMonth, id: \.self) { date in
-                    if let date = date {
+                ForEach(calendarCells) { cell in
+                    if let date = cell.date {
                         calendarDay(date: date)
                     } else {
                         Color.clear
@@ -461,7 +467,7 @@ struct ActivityCalendarView: View {
         return calendar.compare(currentMonth, to: now, toGranularity: .month) == .orderedAscending
     }
 
-    private var daysInMonth: [Date?] {
+    private var calendarCells: [CalendarCell] {
         let calendar = Calendar.current
 
         guard let range = calendar.range(of: .day, in: .month, for: currentMonth),
@@ -471,15 +477,21 @@ struct ActivityCalendarView: View {
 
         let firstWeekday = calendar.component(.weekday, from: firstDay) - 1
 
-        var days: [Date?] = Array(repeating: nil, count: firstWeekday)
+        var cells: [CalendarCell] = []
 
+        // Empty cells for days before the first of the month
+        for i in 0..<firstWeekday {
+            cells.append(CalendarCell(id: i, date: nil))
+        }
+
+        // Days of the month
         for day in range {
             if let date = calendar.date(byAdding: .day, value: day - 1, to: firstDay) {
-                days.append(date)
+                cells.append(CalendarCell(id: firstWeekday + day - 1, date: date))
             }
         }
 
-        return days
+        return cells
     }
 
     private func previousMonth() {

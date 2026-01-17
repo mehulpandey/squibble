@@ -144,7 +144,10 @@ struct OnboardingView: View {
             let granted = await NotificationManager.shared.requestPermission()
             await MainActor.run {
                 notificationStatus = granted ? .granted : .denied
-                // Don't auto-advance - user must tap Continue
+                // Auto-advance to next page after user responds to permission dialog
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    currentPage = 3
+                }
             }
         }
     }

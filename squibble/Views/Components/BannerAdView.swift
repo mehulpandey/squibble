@@ -11,21 +11,48 @@ import GoogleMobileAds
 struct BannerAdView: UIViewRepresentable {
     let adUnitID: String
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> BannerView {
         let bannerView = BannerView(adSize: AdSizeBanner)
         bannerView.adUnitID = adUnitID
-
-        // Get the root view controller
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            bannerView.rootViewController = rootVC
-        }
-
-        bannerView.load(Request())
+        bannerView.delegate = context.coordinator
+        context.coordinator.bannerView = bannerView
         return bannerView
     }
 
-    func updateUIView(_ uiView: BannerView, context: Context) {}
+    func updateUIView(_ uiView: BannerView, context: Context) {
+        // Only load if not already loaded
+        if !context.coordinator.hasLoaded {
+            context.coordinator.hasLoaded = true
+
+            // Get the root view controller
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+                uiView.rootViewController = rootVC
+            }
+
+            // Load ad asynchronously to avoid blocking UI
+            DispatchQueue.main.async {
+                uiView.load(Request())
+            }
+        }
+    }
+
+    class Coordinator: NSObject, BannerViewDelegate {
+        var bannerView: BannerView?
+        var hasLoaded = false
+
+        func bannerViewDidReceiveAd(_ bannerView: BannerView) {
+            // Ad loaded successfully
+        }
+
+        func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: Error) {
+            print("Banner ad failed to load: \(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - Banner Ad Container
