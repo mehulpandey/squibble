@@ -24,10 +24,10 @@ struct AppTheme {
     static let primaryGlow = Color(hex: "FF6B54").opacity(0.4)
     static let primaryGlowSoft = Color(hex: "FF6B54").opacity(0.3)
 
-    // MARK: - Secondary Accent (Cyan/Teal)
-    static let secondary = Color(hex: "00D2D3")
-    static let secondaryGlow = Color(hex: "00D2D3").opacity(0.4)
-    static let secondaryBackground = Color(hex: "00D2D3").opacity(0.15)
+    // MARK: - Secondary Accent (Mustard Yellow)
+    static let secondary = Color(hex: "F3B527")
+    static let secondaryGlow = Color(hex: "F3B527").opacity(0.4)
+    static let secondaryBackground = Color(hex: "F3B527").opacity(0.15)
 
     // MARK: - Glass-morphism Container
     static let glassBackground = Color.white.opacity(0.05)
@@ -66,7 +66,7 @@ struct AppTheme {
     // MARK: - Legacy compatibility (can remove later)
     static let coral = primaryStart
     static let coralDark = primaryEnd
-    static let success = Color(hex: "00D2D3")
+    static let success = Color(hex: "F3B527")
     static let error = Color(hex: "FF6B54")
 }
 

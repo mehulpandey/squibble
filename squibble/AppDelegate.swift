@@ -19,6 +19,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Set notification delegate
         UNUserNotificationCenter.current().delegate = self
 
+        // Clear any existing badge
+        UIApplication.shared.applicationIconBadgeNumber = 0
+
         // Configure Google Sign-In
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: Config.Google.clientID)
 
@@ -109,8 +112,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Show banner and play sound even when app is open
-        completionHandler([.banner, .sound, .badge])
+        // Show banner and play sound even when app is open (no badge)
+        completionHandler([.banner, .sound])
     }
 
     /// Called when user taps on notification

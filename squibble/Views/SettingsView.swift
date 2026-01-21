@@ -537,7 +537,7 @@ struct ColorPickerSettingsView: View {
     // Updated colors for dark theme
     private let colors = [
         "#FF6B54", "#FF9F43", "#FECA57", "#FFE600",
-        "#00FFA3", "#00D2D3", "#54A0FF", "#5F27CD",
+        "#00FFA3", "#F3B527", "#54A0FF", "#5F27CD",
         "#A29BFE", "#FF6B81", "#FD79A8", "#FFFFFF"
     ]
 

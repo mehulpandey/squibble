@@ -14,13 +14,13 @@ class FavoriteColorsManager: ObservableObject {
     private let userDefaults = UserDefaults.standard
     private let favoritesKey = "favoriteDrawingColors"
 
-    // Default favorite colors (vibrant colors for dark mode)
+    // Default favorite colors (diverse selection from color picker)
     private let defaultColors: [String] = [
-        "FF6B54",  // Coral/Orange (primary)
-        "FF9F43",  // Orange
-        "FECA57",  // Golden yellow
-        "00D2D3",  // Cyan (secondary)
-        "54A0FF"   // Bright blue
+        "EF4444",  // Red
+        "F97316",  // Orange
+        "4ADE80",  // Green
+        "3B82F6",  // Blue
+        "8B5CF6"   // Purple
     ]
 
     @Published var favoriteColors: [Color] = []

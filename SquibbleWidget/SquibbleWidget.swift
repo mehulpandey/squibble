@@ -17,8 +17,6 @@ struct DoodleEntry: TimelineEntry {
     let senderInitials: String?
     let senderColor: String?
     let doodleID: UUID?
-    let dataUpdatedAt: Date?  // When app last saved data
-    let widgetRefreshedAt: Date  // When widget actually refreshed
 }
 
 // MARK: - Timeline Provider
@@ -31,9 +29,7 @@ struct DoodleTimelineProvider: TimelineProvider {
             senderName: "Friend",
             senderInitials: "FR",
             senderColor: "#FF6B6B",
-            doodleID: nil,
-            dataUpdatedAt: nil,
-            widgetRefreshedAt: Date()
+            doodleID: nil
         )
     }
 
@@ -53,7 +49,6 @@ struct DoodleTimelineProvider: TimelineProvider {
     private func createEntry() -> DoodleEntry {
         let image = WidgetDataManager.getLatestDoodleImage()
         let metadata = WidgetDataManager.getLatestDoodleMetadata()
-        let dataUpdatedAt = WidgetDataManager.getLastWidgetUpdate()
 
         return DoodleEntry(
             date: Date(),
@@ -61,9 +56,7 @@ struct DoodleTimelineProvider: TimelineProvider {
             senderName: metadata?.senderName,
             senderInitials: metadata?.initials,
             senderColor: metadata?.color,
-            doodleID: metadata?.doodleID,
-            dataUpdatedAt: dataUpdatedAt,
-            widgetRefreshedAt: Date()
+            doodleID: metadata?.doodleID
         )
     }
 }
@@ -121,44 +114,9 @@ struct SquibbleWidgetEntryView: View {
                         }
                     }
                 }
-
-                // DEBUG: Show timestamps (top-left)
-                #if DEBUG
-                VStack {
-                    HStack {
-                        debugTimestamps
-                            .padding(4)
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                #endif
             }
         }
     }
-
-    #if DEBUG
-    private var debugTimestamps: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            // Data = when app saved data, Widget = when widget refreshed
-            Text("D:\(formatTime(entry.dataUpdatedAt))")
-                .font(.system(size: 7))
-            Text("W:\(formatTime(entry.widgetRefreshedAt))")
-                .font(.system(size: 7))
-        }
-        .foregroundColor(.black)
-        .padding(2)
-        .background(Color.white.opacity(0.8))
-        .cornerRadius(2)
-    }
-
-    private func formatTime(_ date: Date?) -> String {
-        guard let date = date else { return "?" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: date)
-    }
-    #endif
 
     private func senderBadge(initials: String, colorHex: String) -> some View {
         Text(initials)
@@ -275,5 +233,5 @@ extension Color {
 #Preview(as: .systemSmall) {
     SquibbleWidget()
 } timeline: {
-    DoodleEntry(date: .now, doodleImage: nil, senderName: nil, senderInitials: nil, senderColor: nil, doodleID: nil, dataUpdatedAt: nil, widgetRefreshedAt: .now)
+    DoodleEntry(date: .now, doodleImage: nil, senderName: nil, senderInitials: nil, senderColor: nil, doodleID: nil)
 }

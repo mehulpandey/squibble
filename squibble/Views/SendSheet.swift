@@ -206,7 +206,7 @@ struct SendSheet: View {
                     if selectedFriendIDs.isEmpty || isSending {
                         AppTheme.buttonInactiveBackground
                     } else {
-                        // Use secondary (cyan) for Send confirmation
+                        // Use secondary (mustard yellow) for Send confirmation
                         LinearGradient(
                             colors: [AppTheme.secondary, AppTheme.secondary.opacity(0.8)],
                             startPoint: .leading,
@@ -391,7 +391,7 @@ struct FriendSelectionRow: View {
 
                 Spacer()
 
-                // Selection indicator with cyan/teal for selected
+                // Selection indicator with mustard yellow for selected
                 ZStack {
                     Circle()
                         .stroke(isSelected ? AppTheme.secondary : AppTheme.buttonInactiveBorder, lineWidth: 2)

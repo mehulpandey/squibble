@@ -78,7 +78,6 @@ async function sendPushNotification(
           body,
         },
         sound: "default",
-        badge: 1,
       },
       ...data,
     };
