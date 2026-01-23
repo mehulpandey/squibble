@@ -490,13 +490,15 @@ struct UpgradeView: View {
     // MARK: - Terms Text
 
     private var termsText: some View {
-        VStack(spacing: 4) {
-            Text("Subscription automatically renews unless cancelled.")
+        VStack(spacing: 8) {
+            // Subscription details required by App Store
+            Text(subscriptionDisclosureText)
                 .font(.custom("Avenir-Regular", size: 11))
                 .foregroundColor(AppTheme.textInactive)
+                .multilineTextAlignment(.center)
 
             HStack(spacing: 4) {
-                Button("Terms of Service") {
+                Button("Terms of Use (EULA)") {
                     if let url = URL(string: "https://mehulpandey.github.io/squibble-legal/terms-of-service") {
                         UIApplication.shared.open(url)
                     }
@@ -514,10 +516,17 @@ struct UpgradeView: View {
             .foregroundColor(AppTheme.textInactive)
         }
         .multilineTextAlignment(.center)
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 24)
         .padding(.top, 20)
         .opacity(appearAnimation ? 1 : 0)
         .animation(.easeOut(duration: 0.6).delay(0.7), value: appearAnimation)
+    }
+
+    private var subscriptionDisclosureText: String {
+        let monthlyPrice = storeManager.monthlyProduct?.displayPrice ?? "$3.99"
+        let annualPrice = storeManager.annualProduct?.displayPrice ?? "$35.99"
+
+        return "Squibble Pro Monthly: \(monthlyPrice)/month. Squibble Pro Annual: \(annualPrice)/year. Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions in your App Store account settings."
     }
 
     // MARK: - Success Overlay
