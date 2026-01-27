@@ -104,9 +104,18 @@ Check `docs/tasks.md` for current progress. Tasks are organized into checkpoints
 - AdMob production ad unit IDs
 - APNs setup for push notifications
 
+## Git Workflow
+
+**IMPORTANT:** Follow `docs/git-workflow.md` for all development work.
+
+- Never commit directly to `main` - always create a feature or fix branch
+- Branch naming: `feature/<name>` for new features, `fix/<name>` for bug fixes
+- Test thoroughly before merging to `main`
+- Tag releases with semantic versioning (v1.0.1, v1.1.0, etc.)
+
 ## General Instructions
 
-- Follow the tasks list in tasks.md. We will implement this checkpoint by checkpoint. When an item has been completed, mark it complete with a [x]. 
+- Follow the tasks list in tasks.md. We will implement this checkpoint by checkpoint. When an item has been completed, mark it complete with a [x].
 - Use the frontend-design skill whenever doing any UX/UI work.
 - Every step of the way, give me a high level explanation of what changes you made.
 - Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
