@@ -289,6 +289,7 @@ struct LoginView: View {
                 }
             }
         } catch {
+            print("[LoginView] Google sign-in error: \(error)")
             showError(message: "Sign in failed. Please try again.")
         }
     }

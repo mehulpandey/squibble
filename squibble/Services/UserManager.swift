@@ -28,11 +28,46 @@ final class UserManager: ObservableObject {
                 try await updateDeviceToken(pendingToken)
                 print("Pending device token saved to Supabase")
             }
+
+            // Validate streak: reset to 0 if user missed a day and hasn't sent today
+            await validateStreak(userID: id)
         } catch {
             print("Error loading user: \(error)")
             currentUser = nil
         }
         isLoading = false
+    }
+
+    /// Checks if the streak should be reset to 0 (user missed a day and hasn't sent today)
+    private func validateStreak(userID: UUID) async {
+        guard var user = currentUser, user.streak > 0 else { return }
+
+        do {
+            // Get the most recent sent doodle
+            let sentDoodles = try await supabase.getDoodlesSent(by: userID)
+            guard let lastDoodle = sentDoodles.first else {
+                // No doodles sent but streak > 0, reset
+                user.streak = 0
+                try await supabase.updateUser(user)
+                currentUser = user
+                return
+            }
+
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            let lastSentDay = calendar.startOfDay(for: lastDoodle.createdAt)
+            let daysDiff = calendar.dateComponents([.day], from: lastSentDay, to: today).day ?? 0
+
+            if daysDiff > 1 {
+                // Missed at least one day - streak is broken
+                print("[UserManager] Streak broken: last sent \(daysDiff) days ago, resetting to 0")
+                user.streak = 0
+                try await supabase.updateUser(user)
+                currentUser = user
+            }
+        } catch {
+            print("[UserManager] Error validating streak: \(error)")
+        }
     }
 
     func createUserProfile(id: UUID, displayName: String) async throws {
@@ -98,14 +133,15 @@ final class UserManager: ObservableObject {
 
             print("[UserManager] lastSentDate: \(lastDate), daysDiff: \(daysDiff)")
 
-            if daysDiff == 1 {
+            if daysDiff == 0 {
+                // Already sent today - keep streak as is
+            } else if daysDiff == 1 {
                 // Consecutive day - increment streak
                 user.streak += 1
-            } else if daysDiff > 1 {
-                // Gap in days - reset streak to 1
+            } else {
+                // Gap of 2+ days - streak was broken, restart at 1 for today
                 user.streak = 1
             }
-            // daysDiff == 0 means already sent today, keep streak as is
         } else {
             // First doodle ever - start streak at 1
             print("[UserManager] First doodle ever, setting streak to 1")

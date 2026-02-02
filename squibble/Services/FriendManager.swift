@@ -22,13 +22,13 @@ final class FriendManager: ObservableObject {
             // Get accepted friendships
             let friendships = try await supabase.getAcceptedFriends(for: userID)
 
-            // Get friend user IDs
+            // Get unique friend user IDs (deduplicate in case of bidirectional friendships)
+            var seenIDs = Set<UUID>()
             let friendIDs = friendships.compactMap { friendship -> UUID? in
-                if friendship.requesterID == userID {
-                    return friendship.addresseeID
-                } else {
-                    return friendship.requesterID
-                }
+                let friendID = friendship.requesterID == userID ? friendship.addresseeID : friendship.requesterID
+                guard !seenIDs.contains(friendID) else { return nil }
+                seenIDs.insert(friendID)
+                return friendID
             }
 
             // Fetch friend user objects
@@ -57,6 +57,19 @@ final class FriendManager: ObservableObject {
         // Don't allow self-friending
         guard addressee.id != requesterID else {
             return false
+        }
+
+        // Check if a friendship already exists in either direction
+        let existingFriendships = try await supabase.getFriendships(for: requesterID)
+        if let existing = existingFriendships.first(where: {
+            $0.requesterID == addressee.id || $0.addresseeID == addressee.id
+        }) {
+            if existing.status == .pending && existing.requesterID == addressee.id {
+                // They already sent us a request - accept it instead
+                try await supabase.acceptFriendRequest(friendshipID: existing.id)
+            }
+            // Already friends or pending - don't create duplicate
+            return true
         }
 
         // Create friend request

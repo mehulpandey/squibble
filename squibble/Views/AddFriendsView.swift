@@ -181,7 +181,7 @@ struct AddFriendsView: View {
                 }
 
                 // Share button
-                ShareLink(item: "Add me on Squibble! My invite code is: \(inviteCode)\n\nDownload: https://apps.apple.com/app/squibble") {
+                ShareLink(item: "Add me on Squibble! My invite code is: \(inviteCode)\n\nDownload: https://apps.apple.com/us/app/squibble-doodle-widget/id6757321861") {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(AppTheme.primaryStart)
