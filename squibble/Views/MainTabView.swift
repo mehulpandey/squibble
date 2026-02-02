@@ -86,12 +86,12 @@ struct CustomTabBar: View {
                 }
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
             TabBarBackground()
         )
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 70)
         .padding(.bottom, 16)
     }
 }
@@ -132,7 +132,7 @@ struct TabBarButton: View {
                     }
                 }
             }
-            .frame(width: isSelected ? 56 : 60, height: 44)
+            .frame(height: 44)
             .frame(maxWidth: .infinity)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
         }

@@ -24,6 +24,8 @@ interface NotificationPayload {
   sender_id?: string;
   sender_name?: string;
   doodle_id?: string;
+  image_url?: string;
+  sender_color_hex?: string;
 }
 
 interface WebhookPayload {
@@ -78,6 +80,7 @@ async function sendPushNotification(
           body,
         },
         sound: "default",
+        "mutable-content": 1,
       },
       ...data,
     };
@@ -145,18 +148,22 @@ Deno.serve(async (req) => {
       // Get doodle details with sender info
       const { data: doodle } = await supabase
         .from("doodles")
-        .select("sender_id, users!doodles_sender_id_fkey(display_name)")
+        .select("sender_id, image_url, users!doodles_sender_id_fkey(display_name, color_hex)")
         .eq("id", doodleId)
         .single();
 
       if (doodle) {
-        const senderName = (doodle.users as { display_name: string })?.display_name || "Someone";
+        const senderInfo = doodle.users as { display_name: string; color_hex: string } | null;
+        const senderName = senderInfo?.display_name || "Someone";
+        const senderColorHex = senderInfo?.color_hex;
         return await handleNotification(supabase, {
           type: "new_doodle",
           recipient_id: recipientId,
           sender_id: doodle.sender_id,
           sender_name: senderName,
           doodle_id: doodleId,
+          image_url: doodle.image_url as string,
+          sender_color_hex: senderColorHex,
         });
       }
     } else if (webhook.table === "friendships" && webhook.type === "INSERT") {
@@ -253,6 +260,8 @@ async function handleNotification(
       body = `${payload.sender_name} sent you a doodle!`;
       if (payload.doodle_id) data.doodle_id = payload.doodle_id;
       if (payload.sender_id) data.sender_id = payload.sender_id;
+      if (payload.image_url) data.image_url = payload.image_url;
+      if (payload.sender_color_hex) data.sender_color_hex = payload.sender_color_hex;
       break;
 
     case "friend_request":
