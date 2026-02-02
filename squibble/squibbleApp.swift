@@ -7,6 +7,7 @@
 
 import SwiftUI
 import WidgetKit
+import GoogleSignIn
 
 @main
 struct squibbleApp: App {
@@ -28,6 +29,10 @@ struct squibbleApp: App {
                 .environmentObject(friendManager)
                 .environmentObject(navigationManager)
                 .onOpenURL { url in
+                    // Handle Google Sign-In callback URLs
+                    if GIDSignIn.sharedInstance.handle(url) {
+                        return
+                    }
                     // Handle deep links (squibble:// URLs)
                     navigationManager.handleDeepLink(url)
                 }

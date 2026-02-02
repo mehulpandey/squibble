@@ -24,6 +24,7 @@ struct HistoryView: View {
     @State private var showPersonFilter = false
     @State private var selectedPersonID: UUID?
     @State private var selectedDoodle: Doodle?
+    @State private var hasRetriedPendingDoodle = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,6 +79,7 @@ struct HistoryView: View {
         }
         .onChange(of: navigationManager.pendingDoodleID) { _ in
             // Handle deep link when view is already visible
+            hasRetriedPendingDoodle = false
             tryOpenPendingDoodle()
         }
         .onChange(of: doodleManager.allDoodles) { _ in
@@ -307,6 +309,12 @@ struct HistoryView: View {
         if let doodle = doodleManager.allDoodles.first(where: { $0.id == pendingDoodleID }) {
             selectedDoodle = doodle
             navigationManager.clearPendingDoodle()
+        } else if !hasRetriedPendingDoodle {
+            // Doodle not in local list yet — refresh from Supabase and retry once
+            hasRetriedPendingDoodle = true
+            Task {
+                await loadDoodles()
+            }
         }
     }
 }
