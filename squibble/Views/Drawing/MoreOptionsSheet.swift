@@ -78,6 +78,27 @@ struct MoreOptionsSheet: View {
                     }
                 )
 
+                // Remove image option (only when image is present)
+                if drawingState.backgroundImage != nil {
+                    Divider()
+                        .background(AppTheme.divider)
+                        .padding(.horizontal, 20)
+
+                    optionRow(
+                        icon: "photo.badge.minus",
+                        iconColor: Color(hex: "EF4444"),
+                        title: "Remove Image",
+                        subtitle: "Remove the background photo",
+                        isPremiumOnly: false,
+                        action: {
+                            drawingState.backgroundImage = nil
+                            drawingState.imageScale = 1.0
+                            drawingState.imageOffset = .zero
+                            dismiss()
+                        }
+                    )
+                }
+
                 Divider()
                     .background(AppTheme.divider)
                     .padding(.horizontal, 20)

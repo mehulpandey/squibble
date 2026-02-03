@@ -12,6 +12,7 @@ import Combine
 final class FriendManager: ObservableObject {
     @Published var friends: [User] = []
     @Published var pendingRequests: [Friendship] = []
+    @Published var outgoingRequests: [Friendship] = []
     @Published var isLoading = false
 
     private let supabase = SupabaseService.shared
@@ -31,17 +32,14 @@ final class FriendManager: ObservableObject {
                 return friendID
             }
 
-            // Fetch friend user objects
-            var friendUsers: [User] = []
-            for friendID in friendIDs {
-                if let user = try await supabase.getUser(id: friendID) {
-                    friendUsers.append(user)
-                }
-            }
-            friends = friendUsers
+            // Fetch all friend user objects in a single query
+            friends = try await supabase.getUsers(ids: friendIDs)
 
             // Get pending requests (where user is addressee)
             pendingRequests = try await supabase.getPendingFriendRequests(for: userID)
+
+            // Get outgoing requests (where user is requester)
+            outgoingRequests = try await supabase.getOutgoingFriendRequests(for: userID)
         } catch {
             print("Error loading friends: \(error)")
         }
@@ -92,6 +90,11 @@ final class FriendManager: ObservableObject {
     func declineFriendRequest(_ friendship: Friendship) async throws {
         try await supabase.deleteFriendship(id: friendship.id)
         pendingRequests.removeAll { $0.id == friendship.id }
+    }
+
+    func cancelOutgoingRequest(_ friendship: Friendship) async throws {
+        try await supabase.deleteFriendship(id: friendship.id)
+        outgoingRequests.removeAll { $0.id == friendship.id }
     }
 
     func removeFriend(_ friend: User, currentUserID: UUID) async throws {

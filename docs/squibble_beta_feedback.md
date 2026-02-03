@@ -14,12 +14,12 @@ Consolidated from 5 testers (Mehul, Sasank, Anshuman, Prath, Aashrita) — Febru
 
 Critical bugs that will cause user churn or bad first impressions.
 
-- [xy] **Push notifications not working** — Multiple testers received zero notifications for doodles, friend requests, or accepted requests. Notifications work in dev but not prod *(Sasank, Anshuman, Prath)* — **Fixed: Edge function was using sandbox APNs server; switched to production. Note: deploy hit internal Supabase error, needs manual redeploy.**
-- [xy] **Friend invite link is incorrect** — Share message contains wrong app URL. Should be: `https://apps.apple.com/us/app/squibble-doodle-widget/id6757321861` *(Mehul)* — **Fixed: Updated URL in AddFriendsView.swift**
-- [xy] **Streak not resetting to 0** — Streak number is not calculating as expected. It should represent number of consecutive days you've sent a doodle (NOT received). It should reset to 0 if a day is missed. *(Mehul)* — **Fixed: Added streak validation on user load that resets to 0 if last doodle was 2+ days ago**
-- [xy] **Duplicate friends in list** — If both users independently send each other a friend request, the friend appears twice in the friend list. *(Prath)* — **Fixed: Added dedup in loadFriends, prevention in sendFriendRequest, DB unique index, and cleaned existing duplicates**
-- [xy] **Gmail login failing** — Login via Gmail was not working for at least one tester. *(Anshuman)* — **Fixed: Added Google Sign-In URL handling in onOpenURL (was missing with multi-scene support)**
-- [xy] **Widget not updating with new doodles** — Widget frequently shows stale content instead of the most recently received doodle. This is sporadic - sometimes is an issue and sometimes is not *(Mehul)* — **Fixed: Added Notification Service Extension that intercepts push notifications, downloads doodle image, and updates widget via App Group even when app is backgrounded/killed. Also updated edge function to include image_url and mutable-content in push payload.**
+- [xyz] **Push notifications not working** — Multiple testers received zero notifications for doodles, friend requests, or accepted requests. Notifications work in dev but not prod *(Sasank, Anshuman, Prath)* — **Fixed: Edge function was using sandbox APNs server; switched to production. Note: deploy hit internal Supabase error, needs manual redeploy.**
+- [xyz] **Friend invite link is incorrect** — Share message contains wrong app URL. Should be: `https://apps.apple.com/us/app/squibble-doodle-widget/id6757321861` *(Mehul)* — **Fixed: Updated URL in AddFriendsView.swift**
+- [xyz] **Streak not resetting to 0** — Streak number is not calculating as expected. It should represent number of consecutive days you've sent a doodle (NOT received). It should reset to 0 if a day is missed. *(Mehul)* — **Fixed: Added streak validation on user load that resets to 0 if last doodle was 2+ days ago**
+- [xyz] **Duplicate friends in list** — If both users independently send each other a friend request, the friend appears twice in the friend list. *(Prath)* — **Fixed: Added dedup in loadFriends, prevention in sendFriendRequest, DB unique index, and cleaned existing duplicates**
+- [xyz] **Gmail login failing** — Login via Gmail was not working for at least one tester. *(Anshuman)* — **Fixed: Added Google Sign-In URL handling in onOpenURL (was missing with multi-scene support)**
+- [xyz] **Widget not updating with new doodles** — Widget frequently shows stale content instead of the most recently received doodle. This is sporadic - sometimes is an issue and sometimes is not *(Mehul)* — **Fixed: Added Notification Service Extension that intercepts push notifications, downloads doodle image, and updates widget via App Group even when app is backgrounded/killed. Also updated edge function to include image_url and mutable-content in push payload.**
 
 ---
 
@@ -27,7 +27,7 @@ Critical bugs that will cause user churn or bad first impressions.
 
 Non-user facing issues.
 
-- [xy] **Cached egress usage exceeding free tier limit (5 gb)** - Cached egress should not be exceeding free tier limit since I only have ~20 users. Make app more efficient to mitigate this. Put in separate PR from above issues. — **Fixed: Switched doodles from PNG to JPEG (0.7 quality), added profile image resizing (max 400px), added disk+memory image cache, set Cache-Control headers on uploads (1 year for doodles, 1 hour for profiles).**
+- [xyz] **Cached egress usage exceeding free tier limit (5 gb)** - Cached egress should not be exceeding free tier limit since I only have ~20 users. Make app more efficient to mitigate this. Put in separate PR from above issues. — **Fixed: Switched doodles from PNG to JPEG (0.7 quality), added profile image resizing (max 400px), added disk+memory image cache, set Cache-Control headers on uploads (1 year for doodles, 1 hour for profiles).**
 
 ---
 
@@ -37,25 +37,23 @@ Minor bugs and UX friction that meaningfully impact the experience.
 
 ### Persistent Bugs
 
-- [ ] **Bottom nav: Profile/Home toggle bug** — After visiting Profile then Home, subsequent taps alternate between the two screens. *(Sasank)*
-- [ ] **Tap-to-dot not working** — Tapping the screen to draw a dot doesn't register (only drag works). *(Anshuman)*
-- [ ] **App lags on initial startup** — For the first few seconds on first time app startup, the whole app is very laggy and unresponsive (switching tabs, brush strokes, etc). This gives off a bad first impression for the app. *(Prath)*
+- [xy] **Tap-to-dot not working** — Tapping the screen to draw a dot doesn't register (only drag works). *(Anshuman)* — **Fixed: `endPath()` now saves single-point paths, and `drawPath()` renders them as filled circles. Also updated export function to render dots.**
+
+### UX Improvements
+
+- [xy] **Brush size shared between pen and eraser** — Changing brush size affects both pen and eraser tools. These should be independent. *(Sasank)* — **Fixed: Split `lineWidth` into `penLineWidth` and `eraserLineWidth` in DrawingState. Computed `lineWidth` property delegates to active tool. Each tool remembers its own size.**
+- [xy] **Widget install instructions may be wrong** — Onboarding should say: hold home screen → edit → add widget → search Squibble → etc (use more professional wording). *(Mehul)* — **Fixed: Updated onboarding steps to: Hold home screen/tap Edit → Add Widget → Search "Squibble" → Select size and Add Widget.**
+- [xy] **Trash button clears uploaded images** — Trash icon should only clear drawn strokes, not image. Uploading a new image should replace existing. Need a separate way to remove the image. *(Mehul)* — **Fixed: Trash now calls `clearDrawingOnly()` (strokes only). Added "Remove Image" option in More Options sheet when an image is present.**
+- [xy] **Save image: no confirmation feedback** — No haptic or visual feedback when saving an image. *(Sasank)* — **Fixed: Added dedicated save-to-photos button (download icon) in DoodleDetailView top bar with success haptic feedback and animated "Saved to Photos" toast.**
+- [xy] **Color picker "+" icon confusing** — On color picker circles, replace overlaid "+" icon with an edit icon (pencil/pen or something). *(Sasank, Prath)* — **Fixed: Replaced "plus" icon with "pencil" icon on selected color circles.**
+- [xy] **"Start drawing" empty state styling** — Orange color on text on empty state canvas clashes against some background colors. *(Mehul)* — **Fixed: Empty state hint now uses adaptive color based on perceived brightness of canvas background (dark text on light backgrounds, light text on dark backgrounds).**
+- [xy] **Show outgoing friend requests** — Can't see outgoing pending friend requests in the Friends list. *(Mehul)* — **Fixed: Added "Sent Requests" section in Friends view showing outgoing pending requests with cancel button. Backend fetches outgoing requests via `getOutgoingFriendRequests()` in FriendManager.**
+- [xy] **Friends list** — On Profile screen below Activity calendar, add section that lists all current friends *(Prath)* — **Fixed: Added "Friends" section below Activity calendar on Profile screen showing all friends with avatars. Includes "Add" button that opens AddFriendsView. Shows empty state when no friends.**
+- [xy] **More color options** - In color picker pop-up screen (the screen that appears after a user clicks on a color that is already selected), have 2 tabs at the top - "Preset" and "Custom". Preset should have the 5x5 color grid that already exists in the app. Custom should have a more precise color picker screen where a user can pick an exact color (color wheel or something?) — **Fixed: Added "Preset" and "Custom" tabs to ExpandedColorPickerView. Preset tab has 5x5 grid with 16px vertical spacing. Custom tab has color preview circle on the left with three labeled HSB sliders (H/S/B) on the right. Color applies live as you drag. Brighter active tab text for better contrast.**
 
 ### One-off Bugs
 - [ ] **3-dot menu freezing app** — "More options" button to the right of trash icon is unresponsive/freezes on one tester's device (iPhone 15 Pro Max with iOS 17.6.1). This is a one-off error as it works on other testers' devices. *(Anshuman)*
 - [ ] **Timing out when sending** - In one instance, app is timing out when sending to multiple people (one-off error, doesn't happen every time). *(Sasank)*
-
-### UX Improvements
-
-- [ ] **Brush size shared between pen and eraser** — Changing brush size affects both pen and eraser tools. These should be independent. *(Sasank)*
-- [ ] **Widget install instructions may be wrong** — Onboarding should say: hold home screen → edit → add widget → search Squibble → etc (use more professional wording). *(Mehul)*
-- [ ] **Trash button clears uploaded images** — Trash icon should only clear drawn strokes, not image. Uploading a new image should replace existing. Need a separate way to remove the image. *(Mehul)*
-- [ ] **Save image: no confirmation feedback** — No haptic or visual feedback when saving an image. *(Sasank)*
-- [ ] **Color picker "+" icon confusing** — On color picker circles, replace overlaid "+" icon with an edit icon (pencil/pen or something). *(Sasank, Prath)*
-- [xy] **"Start drawing" empty state styling** — Orange color on text on empty state canvas clashes against some background colors. *(Mehul)*
-- [ ] **Show outgoing friend requests** — Can't see outgoing pending friend requests in the Friends list. *(Mehul)*
-- [ ] **Friends list / Add Friend too buried** — On Profile screen below Activity calendar, add section that lists all current friends *(Prath)*
-- [ ] **More color options** - In color picker pop-up screen (the screen that appears after a user clicks on a color that is already selected), have 2 tabs at the top - "Preset" and "Custom". Preset should have the 5x5 color grid that already exists in the app. Custom should have a more precise color picker screen where a user can pick an exact color (color wheel or something?)
 
 ---
 
@@ -83,6 +81,14 @@ Feature requests and enhancements. Prioritize by engagement impact vs effort.
 - [ ] **Shape tools (squares, circles, etc.)** — Basic shape insertion. *(Anshuman)*
 - [ ] **Phone number login** — Alternative signup/login via phone number. *(Anshuman)*
 - [ ] **Contacts integration for invites** — Import contacts to invite and add friends. *(Aashrita)*
+
+---
+
+## P3+ - Deferred List (lower priority, maybe fix later)
+
+- [x] **Bottom nav: Profile/Home toggle bug** — After visiting Profile then Home, subsequent taps alternate between the two screens. *(Sasank)* — **Fixed: Replaced spring animation (which caused overshoot interfering with matchedGeometryEffect hit areas) with easeInOut on tab bar selection.** <- partially fixed, sometimes flips back and forth but sometimes does not
+- [x] **App lags on initial startup** — For the first few seconds on first time app startup, the whole app is very laggy and unresponsive (switching tabs, brush strokes, etc). This gives off a bad first impression for the app. *(Prath)* — **Fixed: Removed animated splash→main transition that forced expensive layout computation during animation. Batch-fetch friends in single query instead of N+1. Parallel doodle loading (sent+received). Deferred AdMob init by 3s, deferred realtime/widget work by 2s.** <- lag still exists, but not a huge deal (one-time bug per user)
+
 
 ---
 

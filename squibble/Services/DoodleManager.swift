@@ -22,20 +22,19 @@ final class DoodleManager: ObservableObject {
             isLoading = true
         }
 
-        // Fetch sent and received doodles independently so one failure doesn't block the other
-        do {
-            let newSent = try await supabase.getDoodlesSent(by: userID)
-            sentDoodles = newSent
-        } catch {
-            print("Error loading sent doodles: \(error)")
-        }
+        // Fetch sent and received doodles in parallel
+        async let sentTask: [Doodle]? = {
+            do { return try await supabase.getDoodlesSent(by: userID) }
+            catch { print("Error loading sent doodles: \(error)"); return nil }
+        }()
+        async let receivedTask: [Doodle]? = {
+            do { return try await supabase.getDoodlesReceived(by: userID) }
+            catch { print("Error loading received doodles: \(error)"); return nil }
+        }()
 
-        do {
-            let newReceived = try await supabase.getDoodlesReceived(by: userID)
-            receivedDoodles = newReceived
-        } catch {
-            print("Error loading received doodles: \(error)")
-        }
+        let (newSent, newReceived) = await (sentTask, receivedTask)
+        if let newSent { sentDoodles = newSent }
+        if let newReceived { receivedDoodles = newReceived }
 
         if showLoading {
             isLoading = false

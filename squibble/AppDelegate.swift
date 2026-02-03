@@ -33,9 +33,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             await Self.warmupNetworkStack()
         }
 
-        // Initialize Google Mobile Ads SDK in background to avoid blocking app launch
-        // This preloads the ad framework so first ad display is faster
-        Task.detached(priority: .utility) {
+        // Initialize Google Mobile Ads SDK after a delay to avoid main thread contention
+        // during initial UI rendering (AdMob SDK does internal main thread work)
+        Task.detached(priority: .background) {
+            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
             await MobileAds.shared.start()
         }
 

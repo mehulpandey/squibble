@@ -517,10 +517,10 @@ private struct OnboardingWidgetPage: View {
 
             // Steps
             VStack(spacing: 12) {
-                OnboardingWidgetStep(number: "1", text: "Long press your home screen")
-                OnboardingWidgetStep(number: "2", text: "Tap the + in the top corner")
+                OnboardingWidgetStep(number: "1", text: "Hold your home screen, tap Edit")
+                OnboardingWidgetStep(number: "2", text: "Tap Add Widget")
                 OnboardingWidgetStep(number: "3", text: "Search for \"Squibble\"")
-                OnboardingWidgetStep(number: "4", text: "Add the widget")
+                OnboardingWidgetStep(number: "4", text: "Select a size and tap Add Widget")
             }
             .opacity(contentOpacity)
             .padding(.top, 8)

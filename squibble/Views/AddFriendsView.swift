@@ -57,6 +57,11 @@ struct AddFriendsView: View {
                             friendRequestsSection
                         }
 
+                        // Outgoing requests section (if any)
+                        if !friendManager.outgoingRequests.isEmpty {
+                            outgoingRequestsSection
+                        }
+
                         // Friends list
                         friendsListSection
 
@@ -363,6 +368,59 @@ struct AddFriendsView: View {
         .padding(.horizontal, 20)
     }
 
+    // MARK: - Outgoing Requests Section
+
+    private var outgoingRequestsSection: some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack {
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(AppTheme.secondary)
+
+                Text("Sent Requests")
+                    .font(.custom("Avenir-Heavy", size: 16))
+                    .foregroundColor(AppTheme.textPrimary)
+
+                // Badge
+                Text("\(friendManager.outgoingRequests.count)")
+                    .font(.custom("Avenir-Heavy", size: 11))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(AppTheme.secondary)
+                    .cornerRadius(10)
+
+                Spacer()
+            }
+
+            // Requests list
+            VStack(spacing: 0) {
+                ForEach(friendManager.outgoingRequests) { request in
+                    OutgoingRequestRow(
+                        friendship: request,
+                        onCancel: { cancelOutgoingRequest(request) }
+                    )
+
+                    if request.id != friendManager.outgoingRequests.last?.id {
+                        Divider()
+                            .background(AppTheme.divider)
+                            .padding(.horizontal, 12)
+                    }
+                }
+            }
+            .background(AppTheme.glassBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(AppTheme.glassBorder, lineWidth: 1)
+            )
+            .cornerRadius(12)
+        }
+        .padding(16)
+        .glassContainer(cornerRadius: 16)
+        .padding(.horizontal, 20)
+    }
+
     // MARK: - Friends List Section
 
     private var friendsListSection: some View {
@@ -554,6 +612,12 @@ struct AddFriendsView: View {
         }
     }
 
+    private func cancelOutgoingRequest(_ friendship: Friendship) {
+        Task {
+            try? await friendManager.cancelOutgoingRequest(friendship)
+        }
+    }
+
     private func removeFriend(_ friend: User) {
         guard let userID = authManager.currentUserID else { return }
         Task {
@@ -661,6 +725,83 @@ struct FriendRequestRow: View {
             Circle()
                 .stroke(requesterColor, lineWidth: 2)
         )
+    }
+}
+
+// MARK: - Outgoing Request Row
+
+struct OutgoingRequestRow: View {
+    let friendship: Friendship
+    let onCancel: () -> Void
+
+    @State private var addresseeUser: User?
+
+    private var addresseeColor: Color {
+        Color(hex: addresseeUser?.colorHex.replacingOccurrences(of: "#", with: "") ?? "555555")
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Avatar
+            addresseeAvatar
+
+            // Name
+            VStack(alignment: .leading, spacing: 2) {
+                Text(addresseeUser?.displayName ?? "Loading...")
+                    .font(.custom("Avenir-Heavy", size: 14))
+                    .foregroundColor(AppTheme.textPrimary)
+
+                Text("Request pending")
+                    .font(.custom("Avenir-Medium", size: 11))
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+
+            Spacer()
+
+            // Cancel button
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .font(.custom("Avenir-Heavy", size: 12))
+                    .foregroundColor(AppTheme.textSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.glassBackgroundStrong)
+                    .cornerRadius(8)
+            }
+        }
+        .padding(12)
+        .task {
+            addresseeUser = try? await SupabaseService.shared.getUser(id: friendship.addresseeID)
+        }
+    }
+
+    @ViewBuilder
+    private var addresseeAvatar: some View {
+        if let user = addresseeUser,
+           let profileURL = user.profileImageURL {
+            CachedAsyncImage(urlString: profileURL)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(addresseeColor, lineWidth: 2)
+                )
+        } else {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.glassBackgroundStrong)
+
+                Text(addresseeUser?.initials ?? "?")
+                    .font(.custom("Avenir-Heavy", size: 14))
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+            .frame(width: 40, height: 40)
+            .overlay(
+                Circle()
+                    .stroke(addresseeColor, lineWidth: 2)
+            )
+        }
     }
 }
 
