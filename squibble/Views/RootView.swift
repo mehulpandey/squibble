@@ -33,9 +33,6 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
-        .animation(.easeInOut(duration: 0.3), value: authManager.isLoading)
-        .animation(.easeInOut(duration: 0.3), value: showOnboarding)
-        .animation(.easeInOut(duration: 0.3), value: isLoadingUserData)
         .sheet(isPresented: $navigationManager.showPasswordReset) {
             SetNewPasswordView()
                 .environmentObject(authManager)
@@ -88,14 +85,17 @@ struct RootView: View {
             isLoadingUserData = false
         }
 
-        // These can run after UI is shown - don't block loading
+        // Delay non-critical background work to let UI settle first
+        // This prevents main thread contention during initial render (fixes first-launch lag)
         Task.detached(priority: .utility) {
-            // Update widget with latest received doodle
-            await self.doodleManager.updateWidgetWithLatestDoodle(friends: self.friendManager.friends)
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
             // Set up and connect realtime subscriptions
             await self.setupRealtimeCallbacks(userID: userID)
             await RealtimeService.shared.connect(userID: userID)
+
+            // Update widget with latest received doodle
+            await self.doodleManager.updateWidgetWithLatestDoodle(friends: self.friendManager.friends)
         }
     }
 

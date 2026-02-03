@@ -45,6 +45,12 @@ struct ProfileView: View {
                     // Activity calendar
                     activitySection
                         .padding(.top, 20)
+
+                    // Friends list
+                    friendsSection
+                        .padding(.top, 20)
+
+                    Spacer().frame(height: 20)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -277,6 +283,61 @@ struct ProfileView: View {
         }
     }
 
+    // MARK: - Friends Section
+
+    private var friendsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Friends")
+                    .font(.custom("Avenir-Heavy", size: 18))
+                    .foregroundColor(AppTheme.textPrimary)
+
+                Spacer()
+
+                Button(action: { showAddFriends = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Add")
+                            .font(.custom("Avenir-Heavy", size: 13))
+                    }
+                    .foregroundColor(AppTheme.primaryStart)
+                }
+            }
+            .padding(.horizontal, 20)
+
+            if friendManager.friends.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "person.2.slash")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(AppTheme.textTertiary)
+
+                    Text("No friends yet")
+                        .font(.custom("Avenir-Medium", size: 13))
+                        .foregroundColor(AppTheme.textTertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .glassContainer(cornerRadius: 16)
+                .padding(.horizontal, 20)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(friendManager.friends) { friend in
+                        ProfileFriendRow(friend: friend)
+
+                        if friend.id != friendManager.friends.last?.id {
+                            Divider()
+                                .background(AppTheme.divider)
+                                .padding(.horizontal, 12)
+                        }
+                    }
+                }
+                .glassContainer(cornerRadius: 16)
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
     // MARK: - Actions
 
     private func saveName() {
@@ -495,6 +556,55 @@ struct ActivityCalendarView: View {
         withAnimation {
             currentMonth = Calendar.current.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
         }
+    }
+}
+
+// MARK: - Profile Friend Row
+
+struct ProfileFriendRow: View {
+    let friend: User
+
+    private var friendColor: Color {
+        Color(hex: friend.colorHex.replacingOccurrences(of: "#", with: ""))
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Avatar
+            if let profileURL = friend.profileImageURL {
+                CachedAsyncImage(urlString: profileURL)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(friendColor, lineWidth: 2)
+                    )
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.glassBackgroundStrong)
+
+                    Text(friend.initials)
+                        .font(.custom("Avenir-Heavy", size: 13))
+                        .foregroundColor(AppTheme.textSecondary)
+                }
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Circle()
+                        .stroke(friendColor, lineWidth: 2)
+                )
+            }
+
+            // Name
+            Text(friend.displayName)
+                .font(.custom("Avenir-Heavy", size: 14))
+                .foregroundColor(AppTheme.textPrimary)
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 

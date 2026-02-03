@@ -35,8 +35,21 @@ class DrawingState: ObservableObject {
 
     @Published var selectedColor: Color = Color(hex: "2D2D2D")
     @Published var selectedTool: DrawingTool = .pen
-    @Published var lineWidth: CGFloat = 8
+    @Published var penLineWidth: CGFloat = 8
+    @Published var eraserLineWidth: CGFloat = 8
     @Published var canvasBackgroundColor: Color = .white
+
+    /// Returns the active tool's line width (pen or eraser)
+    var lineWidth: CGFloat {
+        get { selectedTool == .eraser ? eraserLineWidth : penLineWidth }
+        set {
+            if selectedTool == .eraser {
+                eraserLineWidth = newValue
+            } else {
+                penLineWidth = newValue
+            }
+        }
+    }
     @Published var backgroundImage: UIImage?
 
     // Image adjustment properties
@@ -65,7 +78,7 @@ class DrawingState: ObservableObject {
     }
 
     func endPath() {
-        if let path = currentPath, path.points.count > 1 {
+        if let path = currentPath, !path.points.isEmpty {
             paths.append(path)
             undoStack.removeAll() // Clear redo stack on new action
         }
@@ -207,7 +220,21 @@ struct DrawingCanvas: View {
     }
 
     private func drawPath(_ path: DrawingPath, in context: inout GraphicsContext) {
-        guard path.points.count > 1 else { return }
+        guard !path.points.isEmpty else { return }
+
+        // Single point = draw a dot
+        if path.points.count == 1 {
+            let point = path.points[0]
+            let radius = path.lineWidth / 2
+            let dotRect = CGRect(x: point.x - radius, y: point.y - radius, width: path.lineWidth, height: path.lineWidth)
+            if path.isEraser {
+                context.blendMode = .destinationOut
+            } else {
+                context.blendMode = .normal
+            }
+            context.fill(Path(ellipseIn: dotRect), with: .color(path.color))
+            return
+        }
 
         var swiftUIPath = Path()
         swiftUIPath.move(to: path.points[0])
@@ -301,11 +328,26 @@ extension DrawingState {
                 // Drawing paths
                 Canvas { context, _ in
                     for path in pathsToRender {
-                        guard path.points.count > 1 else { continue }
+                        guard !path.points.isEmpty else { continue }
 
                         // Scale path points to export size
                         let scaledPoints = path.points.map { point in
                             CGPoint(x: point.x * scaleX, y: point.y * scaleY)
+                        }
+
+                        // Single point = draw a dot
+                        if scaledPoints.count == 1 {
+                            let point = scaledPoints[0]
+                            let scaledWidth = path.lineWidth * lineWidthScale
+                            let radius = scaledWidth / 2
+                            let dotRect = CGRect(x: point.x - radius, y: point.y - radius, width: scaledWidth, height: scaledWidth)
+                            if path.isEraser {
+                                context.blendMode = .destinationOut
+                            } else {
+                                context.blendMode = .normal
+                            }
+                            context.fill(Path(ellipseIn: dotRect), with: .color(path.color))
+                            continue
                         }
 
                         var swiftUIPath = Path()

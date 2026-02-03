@@ -68,12 +68,14 @@ struct HomeView: View {
                     drawingState.selectedColor = color
                 }
             )
-            .presentationDetents([.height(420)])
+            .presentationDetents([.height(450)])
             .presentationDragIndicator(.visible)
             .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showBrushSize) {
-            BrushSizeSlider(lineWidth: $drawingState.lineWidth)
+            BrushSizeSlider(lineWidth: drawingState.selectedTool == .eraser
+                ? $drawingState.eraserLineWidth
+                : $drawingState.penLineWidth)
                 .presentationDetents([.height(180)])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.modalGradient)
@@ -212,15 +214,16 @@ struct HomeView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                // Empty state hint (only on default white background)
-                if drawingState.isEmpty && drawingState.canvasBackgroundColor == .white {
+                // Empty state hint (adapts to background color)
+                if drawingState.isEmpty {
+                    let hintColor = emptyStateHintColor(for: drawingState.canvasBackgroundColor)
                     VStack(spacing: 10) {
                         Image(systemName: "scribble.variable")
                             .font(.system(size: 36))
-                            .foregroundColor(Color.gray.opacity(0.35))
+                            .foregroundColor(hintColor)
                         Text("Start drawing!")
                             .font(.custom("Avenir-Medium", size: 15))
-                            .foregroundColor(Color.gray.opacity(0.35))
+                            .foregroundColor(hintColor)
                     }
                     .allowsHitTesting(false)
                 }
@@ -366,7 +369,7 @@ struct HomeView: View {
                         .frame(width: 36, height: 36)
                         .shadow(color: Color.white.opacity(0.3), radius: 4, x: 0, y: 0)
 
-                    // Plus indicator for editing - dark background with white icon for visibility
+                    // Edit indicator - dark background with white icon for visibility
                     Circle()
                         .fill(AppTheme.backgroundBottom)
                         .frame(width: 16, height: 16)
@@ -375,8 +378,8 @@ struct HomeView: View {
                                 .stroke(Color.white, lineWidth: 1.5)
                         )
                         .overlay(
-                            Image(systemName: "plus")
-                                .font(.system(size: 9, weight: .bold))
+                            Image(systemName: "pencil")
+                                .font(.system(size: 8, weight: .bold))
                                 .foregroundColor(.white)
                         )
                         .shadow(color: Color.black.opacity(0.4), radius: 2, x: 0, y: 1)
@@ -439,9 +442,9 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 canvasControlButton(
                     icon: "trash",
-                    enabled: !drawingState.isEmpty
+                    enabled: !drawingState.paths.isEmpty || drawingState.currentPath != nil
                 ) {
-                    drawingState.clear()
+                    drawingState.clearDrawingOnly()
                 }
 
                 Button(action: { showMoreOptions = true }) {
@@ -494,6 +497,18 @@ struct HomeView: View {
                 showUpgrade = true
             }
         }
+    }
+
+    /// Returns an appropriate hint color based on canvas background brightness
+    private func emptyStateHintColor(for bgColor: Color) -> Color {
+        let uiColor = UIColor(bgColor)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        // Perceived brightness (ITU-R BT.601)
+        let brightness = r * 0.299 + g * 0.587 + b * 0.114
+        return brightness > 0.5
+            ? Color.black.opacity(0.2)
+            : Color.white.opacity(0.25)
     }
 }
 

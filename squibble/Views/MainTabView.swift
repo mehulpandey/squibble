@@ -80,7 +80,7 @@ struct CustomTabBar: View {
                     isSelected: selectedTab == tab,
                     namespace: animation
                 ) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
                         selectedTab = tab
                     }
                 }
@@ -134,7 +134,6 @@ struct TabBarButton: View {
             }
             .frame(height: 44)
             .frame(maxWidth: .infinity)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
         }
         .buttonStyle(TabButtonStyle())
     }

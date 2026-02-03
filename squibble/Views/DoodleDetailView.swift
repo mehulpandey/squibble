@@ -24,6 +24,7 @@ struct DoodleDetailView: View {
     @State private var shareImage: UIImage?
     @State private var isDeleting = false
     @State private var dragOffset: CGFloat = 0
+    @State private var showSaveConfirmation = false
 
     private var currentDoodle: Doodle {
         allDoodles.indices.contains(currentIndex) ? allDoodles[currentIndex] : doodle
@@ -67,6 +68,27 @@ struct DoodleDetailView: View {
                     // Action buttons
                     actionButtons
                         .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 16 : 32)
+                }
+
+                // Save confirmation toast
+                if showSaveConfirmation {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("Saved to Photos")
+                                .font(.custom("Avenir-Heavy", size: 15))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.primaryGradient)
+                        .clipShape(Capsule())
+                        .shadow(color: AppTheme.primaryGlow, radius: 12, x: 0, y: 4)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 120)
+                    }
                 }
             }
         }
@@ -123,18 +145,34 @@ struct DoodleDetailView: View {
 
             Spacer()
 
-            // Share button
-            Button(action: shareDoodle) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppTheme.textPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(AppTheme.glassBackgroundStrong)
-                    .overlay(
-                        Circle()
-                            .stroke(AppTheme.glassBorder, lineWidth: 1)
-                    )
-                    .clipShape(Circle())
+            HStack(spacing: 10) {
+                // Save to photos button
+                Button(action: saveDoodleToPhotos) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppTheme.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(AppTheme.glassBackgroundStrong)
+                        .overlay(
+                            Circle()
+                                .stroke(AppTheme.glassBorder, lineWidth: 1)
+                        )
+                        .clipShape(Circle())
+                }
+
+                // Share button
+                Button(action: shareDoodle) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppTheme.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(AppTheme.glassBackgroundStrong)
+                        .overlay(
+                            Circle()
+                                .stroke(AppTheme.glassBorder, lineWidth: 1)
+                        )
+                        .clipShape(Circle())
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -282,6 +320,36 @@ struct DoodleDetailView: View {
     }
 
     // MARK: - Helpers
+
+    private func saveDoodleToPhotos() {
+        guard let url = URL(string: currentDoodle.imageURL) else { return }
+
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let image = UIImage(data: data) {
+                    await MainActor.run {
+                        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+                        // Haptic feedback
+                        let generator = UINotificationFeedbackGenerator()
+                        generator.notificationOccurred(.success)
+                        // Show confirmation toast
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showSaveConfirmation = true
+                        }
+                        // Auto-hide after 2 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                showSaveConfirmation = false
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("Failed to download image for saving: \(error)")
+            }
+        }
+    }
 
     private func shareDoodle() {
         // Download image and show share sheet

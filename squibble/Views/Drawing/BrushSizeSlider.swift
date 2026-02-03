@@ -11,6 +11,9 @@ struct BrushSizeSlider: View {
     @Binding var lineWidth: CGFloat
     @Environment(\.dismiss) var dismiss
 
+    // Local state to avoid continuous objectWillChange on DrawingState during drag
+    @State private var localWidth: CGFloat = 8
+
     let minWidth: CGFloat = 2
     let maxWidth: CGFloat = 20
 
@@ -35,7 +38,7 @@ struct BrushSizeSlider: View {
             // Preview dot
             Circle()
                 .fill(AppTheme.textPrimary)
-                .frame(width: lineWidth * 2, height: lineWidth * 2)
+                .frame(width: localWidth * 2, height: localWidth * 2)
                 .frame(height: 40)
 
             // Slider
@@ -73,7 +76,10 @@ struct BrushSizeSlider: View {
                                 DragGesture(minimumDistance: 0)
                                     .onChanged { value in
                                         let percent = min(max(0, value.location.x / geometry.size.width), 1)
-                                        lineWidth = minWidth + (maxWidth - minWidth) * percent
+                                        localWidth = minWidth + (maxWidth - minWidth) * percent
+                                    }
+                                    .onEnded { _ in
+                                        lineWidth = localWidth
                                     }
                             )
                     }
@@ -89,10 +95,16 @@ struct BrushSizeSlider: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
+        .onAppear {
+            localWidth = lineWidth
+        }
+        .onDisappear {
+            lineWidth = localWidth
+        }
     }
 
     private func thumbPosition(in width: CGFloat) -> CGFloat {
-        let percent = (lineWidth - minWidth) / (maxWidth - minWidth)
+        let percent = (localWidth - minWidth) / (maxWidth - minWidth)
         return width * percent
     }
 }

@@ -39,6 +39,16 @@ final class SupabaseService {
         return response.first
     }
 
+    func getUsers(ids: [UUID]) async throws -> [User] {
+        guard !ids.isEmpty else { return [] }
+        return try await client
+            .from("users")
+            .select()
+            .in("id", values: ids.map { $0.uuidString })
+            .execute()
+            .value
+    }
+
     func getUserByInviteCode(_ code: String) async throws -> User? {
         let response: [User] = try await client
             .from("users")
@@ -178,6 +188,16 @@ final class SupabaseService {
             .from("friendships")
             .select()
             .eq("addressee_id", value: userID.uuidString)
+            .eq("status", value: "pending")
+            .execute()
+            .value
+    }
+
+    func getOutgoingFriendRequests(for userID: UUID) async throws -> [Friendship] {
+        try await client
+            .from("friendships")
+            .select()
+            .eq("requester_id", value: userID.uuidString)
             .eq("status", value: "pending")
             .execute()
             .value
