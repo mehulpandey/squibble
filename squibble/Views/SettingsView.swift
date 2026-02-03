@@ -440,7 +440,7 @@ struct SettingsView: View {
                 }
 
                 guard let uiImage = UIImage(data: data),
-                      let compressedData = uiImage.jpegData(compressionQuality: 0.7) else {
+                      let compressedData = uiImage.resizedToMaxDimension(400)?.jpegData(compressionQuality: 0.7) else {
                     isUploadingPhoto = false
                     return
                 }

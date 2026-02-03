@@ -211,6 +211,19 @@ struct HomeView: View {
                     canvasSize: CGSize(width: canvasSize, height: canvasSize)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                // Empty state hint (only on default white background)
+                if drawingState.isEmpty && drawingState.canvasBackgroundColor == .white {
+                    VStack(spacing: 10) {
+                        Image(systemName: "scribble.variable")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color.gray.opacity(0.35))
+                        Text("Start drawing!")
+                            .font(.custom("Avenir-Medium", size: 15))
+                            .foregroundColor(Color.gray.opacity(0.35))
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             .frame(width: canvasSize, height: canvasSize)
             .padding(.vertical, 16)

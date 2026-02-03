@@ -364,31 +364,8 @@ struct DoodleGridItem: View {
         GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
                 // Doodle image - use .fit to maintain proper alignment
-                AsyncImage(url: URL(string: doodle.imageURL)) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(AppTheme.canvasTop)
-                            .overlay(
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.textTertiary))
-                            )
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    case .failure:
-                        Rectangle()
-                            .fill(AppTheme.canvasTop)
-                            .overlay(
-                                Image(systemName: "exclamationmark.triangle")
-                                    .foregroundColor(AppTheme.textTertiary)
-                            )
-                    @unknown default:
-                        Rectangle()
-                            .fill(AppTheme.canvasTop)
-                    }
-                }
+                CachedAsyncImage(urlString: doodle.imageURL)
+                    .aspectRatio(contentMode: .fit)
                 .frame(width: geometry.size.width, height: geometry.size.width)
 
                 // Sender badge - match widget style
@@ -540,24 +517,15 @@ struct PersonFilterRow: View {
 
     @ViewBuilder
     private var friendAvatar: some View {
-        if let profileURL = friend.profileImageURL,
-           let url = URL(string: profileURL) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 44, height: 44)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(friendColor, lineWidth: 2.5)
-                        )
-                default:
-                    defaultAvatar
-                }
-            }
+        if let profileURL = friend.profileImageURL {
+            CachedAsyncImage(urlString: profileURL)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(friendColor, lineWidth: 2.5)
+                )
         } else {
             defaultAvatar
         }

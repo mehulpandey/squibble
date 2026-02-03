@@ -186,15 +186,15 @@ final class SupabaseService {
     // MARK: - Storage Operations
 
     func uploadDoodleImage(userID: UUID, doodleID: UUID, imageData: Data) async throws -> String {
-        let path = "\(userID.uuidString)/\(doodleID.uuidString).png"
+        let path = "\(userID.uuidString)/\(doodleID.uuidString).jpg"
         try await client.storage
             .from("doodles")
-            .upload(path, data: imageData, options: .init(contentType: "image/png"))
+            .upload(path, data: imageData, options: .init(cacheControl: "31536000", contentType: "image/jpeg"))
         return try client.storage.from("doodles").getPublicURL(path: path).absoluteString
     }
 
     func deleteDoodleImage(userID: UUID, doodleID: UUID) async throws {
-        let path = "\(userID.uuidString)/\(doodleID.uuidString).png"
+        let path = "\(userID.uuidString)/\(doodleID.uuidString).jpg"
         try await client.storage
             .from("doodles")
             .remove(paths: [path])
@@ -204,7 +204,7 @@ final class SupabaseService {
         let path = "\(userID.uuidString).jpg"
         try await client.storage
             .from("profiles")
-            .upload(path, data: imageData, options: .init(contentType: "image/jpeg", upsert: true))
+            .upload(path, data: imageData, options: .init(cacheControl: "3600", contentType: "image/jpeg", upsert: true))
         return try client.storage.from("profiles").getPublicURL(path: path).absoluteString
     }
 

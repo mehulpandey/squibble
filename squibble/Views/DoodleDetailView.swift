@@ -186,43 +186,11 @@ struct DoodleDetailView: View {
 
         return VStack(spacing: 16) {
             // Doodle image
-            AsyncImage(url: URL(string: doodle.imageURL)) { phase in
-                switch phase {
-                case .empty:
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(AppTheme.canvasTop)
-                        .frame(width: imageSize, height: imageSize)
-                        .overlay(
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.primaryStart))
-                        )
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: imageSize, height: imageSize)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                case .failure:
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(AppTheme.canvasTop)
-                        .frame(width: imageSize, height: imageSize)
-                        .overlay(
-                            VStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(AppTheme.textTertiary)
-                                Text("Failed to load")
-                                    .font(.custom("Avenir-Regular", size: 14))
-                                    .foregroundColor(AppTheme.textSecondary)
-                            }
-                        )
-                @unknown default:
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(AppTheme.canvasTop)
-                        .frame(width: imageSize, height: imageSize)
-                }
-            }
+            CachedAsyncImage(urlString: doodle.imageURL)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: imageSize, height: imageSize)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: AppTheme.primaryGlow.opacity(0.3), radius: 24, x: 0, y: 12)
 
             // Sender info for this doodle

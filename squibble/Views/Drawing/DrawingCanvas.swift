@@ -255,7 +255,7 @@ struct DrawingCanvas: View {
 
 extension DrawingState {
     @MainActor
-    func exportToPNG(size: CGSize, originalCanvasSize: CGSize? = nil) -> Data? {
+    func exportToJPEG(size: CGSize, originalCanvasSize: CGSize? = nil, compressionQuality: CGFloat = 0.7) -> Data? {
         let pathsToRender = self.paths
         let bgColor = self.canvasBackgroundColor
         let bgImage = self.backgroundImage
@@ -354,7 +354,7 @@ extension DrawingState {
         renderer.scale = 2.0 // Retina
 
         guard let uiImage = renderer.uiImage else { return nil }
-        return uiImage.pngData()
+        return uiImage.jpegData(compressionQuality: compressionQuality)
     }
 }
 
