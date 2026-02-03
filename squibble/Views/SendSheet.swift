@@ -310,9 +310,9 @@ struct SendSheet: View {
 
         Task {
             do {
-                // Export drawing to PNG with proper scaling from original canvas size
+                // Export drawing to JPEG with proper scaling from original canvas size
                 let originalSize = drawingState.currentCanvasSize.width > 0 ? drawingState.currentCanvasSize : nil
-                guard let imageData = drawingState.exportToPNG(size: canvasSize, originalCanvasSize: originalSize) else {
+                guard let imageData = drawingState.exportToJPEG(size: canvasSize, originalCanvasSize: originalSize) else {
                     throw SendError.exportFailed
                 }
 
@@ -421,24 +421,15 @@ struct FriendSelectionRow: View {
 
     @ViewBuilder
     private var friendAvatar: some View {
-        if let profileURL = friend.profileImageURL,
-           let url = URL(string: profileURL) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(friendColor, lineWidth: 2.5)
-                        )
-                default:
-                    defaultAvatar
-                }
-            }
+        if let profileURL = friend.profileImageURL {
+            CachedAsyncImage(urlString: profileURL)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 48, height: 48)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(friendColor, lineWidth: 2.5)
+                )
         } else {
             defaultAvatar
         }

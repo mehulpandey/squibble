@@ -27,7 +27,7 @@ Critical bugs that will cause user churn or bad first impressions.
 
 Non-user facing issues.
 
-- [ ] **Cached egress usage exceeding free tier limit (5 gb)** - Cached egress should not be exceeding free tier limit since I only have ~20 users. Make app more efficient to mitigate this. Put in separate PR from above issues.
+- [xy] **Cached egress usage exceeding free tier limit (5 gb)** - Cached egress should not be exceeding free tier limit since I only have ~20 users. Make app more efficient to mitigate this. Put in separate PR from above issues. — **Fixed: Switched doodles from PNG to JPEG (0.7 quality), added profile image resizing (max 400px), added disk+memory image cache, set Cache-Control headers on uploads (1 year for doodles, 1 hour for profiles).**
 
 ---
 
@@ -35,12 +35,14 @@ Non-user facing issues.
 
 Minor bugs and UX friction that meaningfully impact the experience.
 
-### Bugs
+### Persistent Bugs
 
 - [ ] **Bottom nav: Profile/Home toggle bug** — After visiting Profile then Home, subsequent taps alternate between the two screens. *(Sasank)*
-- [ ] **3-dot menu freezing app** — "More options" button to the right of trash icon is unresponsive/freezes on one tester's device (iPhone 15 Pro Max with iOS 17.6.1). This is a one-off error as it works on other testers' devices. *(Anshuman)*
 - [ ] **Tap-to-dot not working** — Tapping the screen to draw a dot doesn't register (only drag works). *(Anshuman)*
-- [ ] **App lags on initial startup** — Switching tabs is very slow and brush appears non-functional for a few seconds on first time app startup. This gives off a bad first impression for the app. *(Prath)*
+- [ ] **App lags on initial startup** — For the first few seconds on first time app startup, the whole app is very laggy and unresponsive (switching tabs, brush strokes, etc). This gives off a bad first impression for the app. *(Prath)*
+
+### One-off Bugs
+- [ ] **3-dot menu freezing app** — "More options" button to the right of trash icon is unresponsive/freezes on one tester's device (iPhone 15 Pro Max with iOS 17.6.1). This is a one-off error as it works on other testers' devices. *(Anshuman)*
 - [ ] **Timing out when sending** - In one instance, app is timing out when sending to multiple people (one-off error, doesn't happen every time). *(Sasank)*
 
 ### UX Improvements
@@ -50,10 +52,10 @@ Minor bugs and UX friction that meaningfully impact the experience.
 - [ ] **Trash button clears uploaded images** — Trash icon should only clear drawn strokes, not image. Uploading a new image should replace existing. Need a separate way to remove the image. *(Mehul)*
 - [ ] **Save image: no confirmation feedback** — No haptic or visual feedback when saving an image. *(Sasank)*
 - [ ] **Color picker "+" icon confusing** — On color picker circles, replace overlaid "+" icon with an edit icon (pencil/pen or something). *(Sasank, Prath)*
-- [ ] **More color options** - In color picker pop-up screen (the screen that appears after a user clicks on a color that is already selected), have 2 tabs at the top - "Preset" and "Custom". Preset should have the 5x5 color grid that already exists in the app. Custom should have a more precise color picker screen where a user can pick an exact color (color wheel or something?)
-- [ ] **"Start drawing" empty state styling** — Orange color on text on empty state canvas clashes against some background colors. *(Mehul)*
+- [xy] **"Start drawing" empty state styling** — Orange color on text on empty state canvas clashes against some background colors. *(Mehul)*
 - [ ] **Show outgoing friend requests** — Can't see outgoing pending friend requests in the Friends list. *(Mehul)*
 - [ ] **Friends list / Add Friend too buried** — On Profile screen below Activity calendar, add section that lists all current friends *(Prath)*
+- [ ] **More color options** - In color picker pop-up screen (the screen that appears after a user clicks on a color that is already selected), have 2 tabs at the top - "Preset" and "Custom". Preset should have the 5x5 color grid that already exists in the app. Custom should have a more precise color picker screen where a user can pick an exact color (color wheel or something?)
 
 ---
 
@@ -123,3 +125,39 @@ The app update includes all P0 code changes plus the new **NotificationServiceEx
 - Verify push notifications still display correctly
 - Verify tapping notification still navigates to the doodle
 - Test Gmail login, friend invites, streak reset, and duplicate friend prevention still work
+
+---
+
+## Production Deployment Checklist (P0.5 — Storage Egress Fix)
+
+Steps to migrate the storage egress optimization from `fix/optimize-storage-egress` branch to production.
+
+### 1. Merge Git Branch to Main
+
+```bash
+git checkout main
+git merge fix/optimize-storage-egress
+git push origin main
+```
+
+### 2. Add New Files to Xcode Project
+
+The following new files must be added to the `squibble` target in Xcode if not automatically picked up:
+- `squibble/Utilities/UIImage+Resize.swift`
+- `squibble/Views/Components/CachedAsyncImage.swift`
+
+### 3. Existing Doodle Images (No Migration Needed)
+
+Old doodles stored as `.png` in Supabase will continue to work — the `image_url` stored in the `doodles` table still points to the old `.png` path, and the app loads images by URL. Only **new** doodles will be uploaded as `.jpg`. The `deleteDoodleImage` function now uses `.jpg` extension, so deleting old `.png` doodles from the app will leave orphaned `.png` files in storage. These can be cleaned up manually from the Supabase dashboard if desired, but they are small in aggregate (~16 MB total).
+
+### 4. No Supabase Migrations Required
+
+All changes are client-side only. No database schema changes or Supabase configuration changes are needed. The `cacheControl` headers are set per-upload in the client code and apply to all new uploads automatically.
+
+### 5. Verify After Deploy
+
+- Send a new doodle and confirm it uploads as `.jpg` (check Supabase Storage dashboard)
+- Verify doodle images load correctly in History grid and Detail view
+- Verify profile images still display after changing profile photo
+- Check that old PNG doodles still display correctly (backward compatible)
+- Monitor egress usage in Supabase dashboard over the following days

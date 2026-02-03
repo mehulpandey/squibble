@@ -633,24 +633,15 @@ struct FriendRequestRow: View {
     @ViewBuilder
     private var requesterAvatar: some View {
         if let user = requesterUser,
-           let profileURL = user.profileImageURL,
-           let url = URL(string: profileURL) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 40, height: 40)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(requesterColor, lineWidth: 2)
-                        )
-                default:
-                    defaultRequesterAvatar
-                }
-            }
+           let profileURL = user.profileImageURL {
+            CachedAsyncImage(urlString: profileURL)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(requesterColor, lineWidth: 2)
+                )
         } else {
             defaultRequesterAvatar
         }
@@ -686,24 +677,15 @@ struct FriendRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Avatar
-            if let profileURL = friend.profileImageURL,
-               let url = URL(string: profileURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 40, height: 40)
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(friendColor, lineWidth: 2)
-                            )
-                    default:
-                        defaultFriendAvatar
-                    }
-                }
+            if let profileURL = friend.profileImageURL {
+                CachedAsyncImage(urlString: profileURL)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(friendColor, lineWidth: 2)
+                    )
             } else {
                 defaultFriendAvatar
             }

@@ -120,24 +120,15 @@ struct ProfileView: View {
             // Avatar
             Button(action: { showPhotoPicker = true }) {
                 ZStack {
-                    if let profileURL = user?.profileImageURL,
-                       let url = URL(string: profileURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 88, height: 88)
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(userColor, lineWidth: 4)
-                                    )
-                            default:
-                                defaultAvatar
-                            }
-                        }
+                    if let profileURL = user?.profileImageURL {
+                        CachedAsyncImage(urlString: profileURL)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 88, height: 88)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(userColor, lineWidth: 4)
+                            )
                     } else {
                         defaultAvatar
                     }
@@ -305,9 +296,9 @@ struct ProfileView: View {
                     return
                 }
 
-                // Compress image
+                // Resize and compress image
                 guard let uiImage = UIImage(data: data),
-                      let compressedData = uiImage.jpegData(compressionQuality: 0.7) else {
+                      let compressedData = uiImage.resizedToMaxDimension(400)?.jpegData(compressionQuality: 0.7) else {
                     isUploadingPhoto = false
                     return
                 }
