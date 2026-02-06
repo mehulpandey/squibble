@@ -62,8 +62,60 @@ final class DoodleManager: ObservableObject {
         // Add recipients
         try await supabase.addDoodleRecipients(doodleID: doodle.id, recipientIDs: recipientIDs)
 
+        // Create conversations and thread items for each recipient
+        for recipientID in recipientIDs {
+            do {
+                print("DEBUG: Creating conversation between \(senderID) and \(recipientID)")
+                // Get or create conversation with this recipient
+                let conversationID = try await supabase.getOrCreateDirectConversation(
+                    userA: senderID,
+                    userB: recipientID
+                )
+                print("DEBUG: Got conversation ID: \(conversationID)")
+                // Create thread item linking doodle to conversation
+                let threadItemID = try await supabase.createThreadItemForDoodle(
+                    conversationID: conversationID,
+                    senderID: senderID,
+                    doodleID: doodle.id
+                )
+                print("DEBUG: Created thread item: \(threadItemID)")
+            } catch {
+                // Log but don't fail the whole send if conversation creation fails
+                print("ERROR: Failed to create conversation/thread_item for recipient \(recipientID): \(error)")
+                print("ERROR: Full error: \(String(describing: error))")
+            }
+        }
+
         // Update local state
         sentDoodles.insert(doodle, at: 0)
+    }
+
+    /// Send a doodle within a conversation context
+    /// Creates the doodle and thread_item in one flow
+    func sendDoodleToConversation(senderID: UUID, imageData: Data, conversationID: UUID) async throws -> (doodle: Doodle, threadItemID: UUID) {
+        let doodleID = UUID()
+
+        // Upload image to storage
+        let imageURL = try await supabase.uploadDoodleImage(
+            userID: senderID,
+            doodleID: doodleID,
+            imageData: imageData
+        )
+
+        // Create doodle record
+        let doodle = try await supabase.createDoodle(senderID: senderID, imageURL: imageURL)
+
+        // Create thread item linking doodle to conversation
+        let threadItemID = try await supabase.createThreadItemForDoodle(
+            conversationID: conversationID,
+            senderID: senderID,
+            doodleID: doodle.id
+        )
+
+        // Update local state
+        sentDoodles.insert(doodle, at: 0)
+
+        return (doodle, threadItemID)
     }
 
     func deleteSentDoodle(_ doodle: Doodle, userID: UUID) async throws {

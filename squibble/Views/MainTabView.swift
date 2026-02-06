@@ -61,6 +61,25 @@ struct MainTabView: View {
                 CustomTabBar(selectedTab: $navigationManager.selectedTab)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
+            // Grid overlay (shown above tab bar to cover it)
+            if let doodle = navigationManager.gridOverlayDoodle,
+               let userID = authManager.currentUserID {
+                DoodleReactionOverlay(
+                    doodle: doodle,
+                    threadItemID: nil,
+                    currentUserID: userID,
+                    currentEmoji: navigationManager.gridOverlayReactionEmoji,
+                    onReactionSelected: { emoji in
+                        navigationManager.gridOverlayOnReaction?(emoji)
+                    },
+                    onDismiss: {
+                        navigationManager.gridOverlayOnDismiss?()
+                        navigationManager.dismissGridOverlay()
+                    }
+                )
+                .ignoresSafeArea()
+            }
         }
         .ignoresSafeArea(.keyboard)
     }
@@ -80,6 +99,11 @@ struct CustomTabBar: View {
                     isSelected: selectedTab == tab,
                     namespace: animation
                 ) {
+                    // Light haptic on tab switch
+                    if selectedTab != tab {
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
                     withAnimation(.easeInOut(duration: 0.25)) {
                         selectedTab = tab
                     }
@@ -107,16 +131,15 @@ struct TabBarButton: View {
             ZStack {
                 if isSelected {
                     Capsule()
-                        .fill(AppTheme.primaryGradient)
+                        .fill(Color.white.opacity(0.15))
                         .matchedGeometryEffect(id: "tabBackground", in: namespace)
-                        .shadow(color: AppTheme.primaryGlowSoft, radius: 16, x: 0, y: 4)
                 }
 
                 if isSelected {
                     // Selected: icon only with scale animation
                     Image(systemName: tab.icon)
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.textPrimary)
                         .scaleEffect(1.1)
                 } else {
                     // Inactive: icon + label

@@ -18,9 +18,30 @@ final class NavigationManager: ObservableObject {
     @Published var pendingDoodleID: UUID?
     @Published var pendingInviteCode: String?
     @Published var pendingReplyRecipientID: UUID?
+    @Published var pendingConversationID: UUID?
     @Published var showAddFriends = false
     @Published var pendingHistoryFilter: DoodleFilter?
     @Published var showPasswordReset = false
+
+    // Grid overlay state (shown at MainTabView level to cover tab bar)
+    @Published var gridOverlayDoodle: Doodle?
+    @Published var gridOverlayReactionEmoji: String?
+    var gridOverlayOnReaction: ((String) -> Void)?
+    var gridOverlayOnDismiss: (() -> Void)?
+
+    func showGridOverlay(doodle: Doodle, currentEmoji: String?, onReaction: @escaping (String) -> Void, onDismiss: @escaping () -> Void) {
+        gridOverlayDoodle = doodle
+        gridOverlayReactionEmoji = currentEmoji
+        gridOverlayOnReaction = onReaction
+        gridOverlayOnDismiss = onDismiss
+    }
+
+    func dismissGridOverlay() {
+        gridOverlayDoodle = nil
+        gridOverlayReactionEmoji = nil
+        gridOverlayOnReaction = nil
+        gridOverlayOnDismiss = nil
+    }
 
     // Handle deep links
     func handleDeepLink(_ url: URL) {
@@ -70,6 +91,14 @@ final class NavigationManager: ObservableObject {
             case "draw":
                 // squibble://draw - Open drawing canvas
                 selectedTab = .home
+
+            case "conversation":
+                // squibble://conversation/{id} - Open specific conversation
+                if let conversationIDString = components.path.dropFirst().description.split(separator: "/").first,
+                   let conversationID = UUID(uuidString: String(conversationIDString)) {
+                    pendingConversationID = conversationID
+                    selectedTab = .history
+                }
 
             case "reset-password":
                 // squibble://reset-password#access_token=...&type=recovery
@@ -124,6 +153,10 @@ final class NavigationManager: ObservableObject {
 
     func clearPendingReplyRecipient() {
         pendingReplyRecipientID = nil
+    }
+
+    func clearPendingConversation() {
+        pendingConversationID = nil
     }
 
     // MARK: - Notification Actions

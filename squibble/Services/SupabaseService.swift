@@ -331,4 +331,231 @@ final class SupabaseService {
             .eq("id", value: userID.uuidString)
             .execute()
     }
+
+    // MARK: - Conversation Operations
+
+    /// Get or create a direct conversation between two users
+    func getOrCreateDirectConversation(userA: UUID, userB: UUID) async throws -> UUID {
+        let result: String = try await client
+            .rpc("get_or_create_direct_conversation", params: [
+                "user_a": userA.uuidString,
+                "user_b": userB.uuidString
+            ])
+            .execute()
+            .value
+        guard let uuid = UUID(uuidString: result) else {
+            throw NSError(domain: "SupabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid UUID returned"])
+        }
+        return uuid
+    }
+
+    /// Get user's conversation participations
+    func getConversationParticipations(for userID: UUID) async throws -> [ConversationParticipant] {
+        try await client
+            .from("conversation_participants")
+            .select()
+            .eq("user_id", value: userID.uuidString)
+            .execute()
+            .value
+    }
+
+    /// Get conversations by IDs
+    func getConversations(ids: [UUID]) async throws -> [Conversation] {
+        guard !ids.isEmpty else { return [] }
+        return try await client
+            .from("conversations")
+            .select()
+            .in("id", values: ids.map { $0.uuidString })
+            .order("updated_at", ascending: false)
+            .execute()
+            .value
+    }
+
+    /// Get all participants for given conversations (uses RPC to avoid RLS recursion)
+    func getAllParticipants(conversationIDs: [UUID]) async throws -> [ConversationParticipant] {
+        guard !conversationIDs.isEmpty else { return [] }
+        return try await client
+            .rpc("get_conversation_participants", params: [
+                "p_conversation_ids": conversationIDs.map { $0.uuidString }
+            ])
+            .execute()
+            .value
+    }
+
+    /// Get latest thread item for a conversation
+    func getLatestThreadItem(conversationID: UUID) async throws -> ThreadItem? {
+        let items: [ThreadItem] = try await client
+            .from("thread_items")
+            .select()
+            .eq("conversation_id", value: conversationID.uuidString)
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+        return items.first
+    }
+
+    /// Get thread items for a conversation with pagination
+    func getThreadItems(conversationID: UUID, limit: Int = 50, before: Date? = nil) async throws -> [ThreadItem] {
+        var query = client
+            .from("thread_items")
+            .select()
+            .eq("conversation_id", value: conversationID.uuidString)
+
+        if let beforeDate = before {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            query = query.lt("created_at", value: formatter.string(from: beforeDate))
+        }
+
+        return try await query
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute()
+            .value
+    }
+
+    /// Get doodles by IDs
+    func getDoodles(ids: [UUID]) async throws -> [Doodle] {
+        guard !ids.isEmpty else { return [] }
+        return try await client
+            .from("doodles")
+            .select()
+            .in("id", values: ids.map { $0.uuidString })
+            .execute()
+            .value
+    }
+
+    /// Update last_read_at for a conversation participant
+    func updateLastReadAt(conversationID: UUID, userID: UUID) async throws {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        try await client
+            .from("conversation_participants")
+            .update(["last_read_at": formatter.string(from: Date())])
+            .eq("conversation_id", value: conversationID.uuidString)
+            .eq("user_id", value: userID.uuidString)
+            .execute()
+    }
+
+    /// Update muted status for a conversation participant
+    func updateMuted(conversationID: UUID, userID: UUID, muted: Bool) async throws {
+        try await client
+            .from("conversation_participants")
+            .update(["muted": muted])
+            .eq("conversation_id", value: conversationID.uuidString)
+            .eq("user_id", value: userID.uuidString)
+            .execute()
+    }
+
+    /// Create a thread item for a doodle using RPC function
+    func createThreadItemForDoodle(conversationID: UUID, senderID: UUID, doodleID: UUID) async throws -> UUID {
+        let result: String = try await client
+            .rpc("create_thread_item_for_doodle", params: [
+                "p_conversation_id": conversationID.uuidString,
+                "p_sender_id": senderID.uuidString,
+                "p_doodle_id": doodleID.uuidString
+            ])
+            .execute()
+            .value
+        guard let uuid = UUID(uuidString: result) else {
+            throw NSError(domain: "SupabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid UUID returned"])
+        }
+        return uuid
+    }
+
+    /// Create a text message thread item using RPC function
+    func createTextThreadItem(conversationID: UUID, senderID: UUID, textContent: String) async throws -> UUID {
+        let result: String = try await client
+            .rpc("create_text_thread_item", params: [
+                "p_conversation_id": conversationID.uuidString,
+                "p_sender_id": senderID.uuidString,
+                "p_text_content": textContent
+            ])
+            .execute()
+            .value
+        guard let uuid = UUID(uuidString: result) else {
+            throw NSError(domain: "SupabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid UUID returned"])
+        }
+        return uuid
+    }
+
+    /// Count unread items in a conversation for a user
+    func countUnreadItems(conversationID: UUID, userID: UUID, lastReadAt: Date) async throws -> Int {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let items: [ThreadItem] = try await client
+            .from("thread_items")
+            .select()
+            .eq("conversation_id", value: conversationID.uuidString)
+            .neq("sender_id", value: userID.uuidString)
+            .gt("created_at", value: formatter.string(from: lastReadAt))
+            .execute()
+            .value
+        return items.count
+    }
+
+    /// Get thread item by doodle ID (for reacting to doodles from grid view)
+    func getThreadItem(byDoodleID doodleID: UUID) async throws -> ThreadItem? {
+        let items: [ThreadItem] = try await client
+            .from("thread_items")
+            .select()
+            .eq("doodle_id", value: doodleID.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return items.first
+    }
+
+    // MARK: - Reaction Operations
+
+    /// Add or update a reaction to a thread item
+    /// Uses upsert to handle both new reactions and changing existing ones
+    func addReaction(threadItemID: UUID, userID: UUID, emoji: String) async throws -> Reaction {
+        let reactions: [Reaction] = try await client
+            .from("reactions")
+            .upsert([
+                "thread_item_id": threadItemID.uuidString,
+                "user_id": userID.uuidString,
+                "emoji": emoji
+            ], onConflict: "thread_item_id,user_id")
+            .select()
+            .execute()
+            .value
+        guard let reaction = reactions.first else {
+            throw NSError(domain: "SupabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to add reaction"])
+        }
+        return reaction
+    }
+
+    /// Remove a reaction from a thread item
+    func removeReaction(threadItemID: UUID, userID: UUID) async throws {
+        try await client
+            .from("reactions")
+            .delete()
+            .eq("thread_item_id", value: threadItemID.uuidString)
+            .eq("user_id", value: userID.uuidString)
+            .execute()
+    }
+
+    /// Get all reactions for a set of thread items
+    func getReactions(threadItemIDs: [UUID]) async throws -> [Reaction] {
+        guard !threadItemIDs.isEmpty else { return [] }
+        return try await client
+            .from("reactions")
+            .select()
+            .in("thread_item_id", values: threadItemIDs.map { $0.uuidString })
+            .execute()
+            .value
+    }
+
+    /// Get reactions for a single thread item
+    func getReactions(threadItemID: UUID) async throws -> [Reaction] {
+        try await client
+            .from("reactions")
+            .select()
+            .eq("thread_item_id", value: threadItemID.uuidString)
+            .execute()
+            .value
+    }
 }
