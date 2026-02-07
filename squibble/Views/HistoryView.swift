@@ -33,35 +33,45 @@ struct HistoryView: View {
     @State private var hasRetriedPendingDoodle = false
     @State private var doodleReactions: [UUID: String] = [:]  // Cache of reactions by doodle ID
 
+    private var safeAreaTop: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 0
+    }
+
+    // Header height: safeAreaTop + title row + optional filter bar
+    private var headerContentHeight: CGFloat {
+        viewMode == .grid ? 56 + 56 : 56  // title row + filter bar in grid mode
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header with segment control
-            headerBar
-
-            // Content based on view mode
-            if viewMode == .grid {
-                // Grid mode - existing filter bar and grid
-                filterBar
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
-
-                if doodleManager.isLoading {
-                    loadingView
-                } else if filteredDoodles.isEmpty {
-                    emptyStateView
+        ZStack(alignment: .top) {
+            // Content layer (scrolls behind header)
+            VStack(spacing: 0) {
+                // Content based on view mode
+                if viewMode == .grid {
+                    if doodleManager.isLoading {
+                        loadingView
+                    } else if filteredDoodles.isEmpty {
+                        emptyStateView
+                    } else {
+                        doodleGrid
+                    }
                 } else {
-                    doodleGrid
+                    // Chats mode - conversation list
+                    ConversationListView()
+                        .padding(.top, 2 * safeAreaTop + headerContentHeight + 16)
                 }
-            } else {
-                // Chats mode - conversation list
-                ConversationListView()
+
+                // Banner ad for free users
+                BannerAdContainer()
                     .padding(.top, 8)
             }
 
-            // Banner ad for free users
-            BannerAdContainer()
-                .padding(.top, 8)
+            // Floating header at top
+            floatingHeader
         }
+        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $showPersonFilter) {
             PersonFilterSheet(
                 selectedPersonID: $selectedPersonID,
@@ -108,6 +118,29 @@ struct HistoryView: View {
         }
     }
 
+    // MARK: - Floating Header
+
+    private var floatingHeader: some View {
+        ZStack(alignment: .top) {
+            // Blur background
+            VisualEffectBlur(blurStyle: .dark)
+                .opacity(0.9)
+
+            // Content layer
+            VStack(spacing: 0) {
+                headerBar
+
+                if viewMode == .grid {
+                    filterBar
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+                }
+            }
+            .padding(.top, 2 * safeAreaTop)  // Match ProfileView: content at 2*safeAreaTop from screen top
+        }
+        .frame(height: 2 * safeAreaTop + headerContentHeight)
+    }
+
     // MARK: - Header Bar
 
     private var headerBar: some View {
@@ -122,9 +155,6 @@ struct HistoryView: View {
             viewModeToggle
         }
         .padding(.horizontal, 20)
-        .padding(.top, UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0)
     }
 
     // MARK: - View Mode Toggle
@@ -262,7 +292,7 @@ struct HistoryView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.top, 2 * safeAreaTop + headerContentHeight + 16)  // Start below floating header
             .padding(.bottom, 100)  // Allow content to scroll behind tab bar
         }
         .refreshable {
