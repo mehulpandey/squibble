@@ -61,9 +61,6 @@ struct HistoryView: View {
             // Banner ad for free users
             BannerAdContainer()
                 .padding(.top, 8)
-
-            // Space for tab bar
-            Spacer().frame(height: 100)
         }
         .sheet(isPresented: $showPersonFilter) {
             PersonFilterSheet(
@@ -144,18 +141,22 @@ struct HistoryView: View {
                 }) {
                     Image(systemName: mode == .grid ? "square.grid.2x2" : "bubble.left.and.bubble.right")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(viewMode == mode ? .white : AppTheme.textSecondary)
-                        .frame(width: 40, height: 32)
+                        .foregroundColor(viewMode == mode ? AppTheme.textPrimary : AppTheme.textSecondary)
+                        .frame(width: 42, height: 42)
                         .background(
                             Group {
                                 if viewMode == mode {
                                     Capsule()
-                                        .fill(AppTheme.primaryGradient)
+                                        .fill(Color.white.opacity(0.15))
                                 } else {
                                     Capsule()
                                         .fill(Color.clear)
                                 }
                             }
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(viewMode == mode ? Color.white.opacity(0.2) : Color.clear, lineWidth: 1)
                         )
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -203,16 +204,23 @@ struct HistoryView: View {
                             .font(.system(size: 10, weight: .bold))
                     }
                 }
-                .foregroundColor(selectedPersonID != nil ? AppTheme.textPrimary : AppTheme.textSecondary)
+                .foregroundColor(selectedPersonID != nil ? .white : AppTheme.textSecondary)
                 .padding(.horizontal, selectedPersonID != nil ? 14 : 12)
                 .padding(.vertical, 10)
                 .background(
-                    Capsule()
-                        .fill(selectedPersonID != nil ? Color.white.opacity(0.15) : AppTheme.buttonInactiveBackground)
+                    Group {
+                        if selectedPersonID != nil {
+                            Capsule()
+                                .fill(AppTheme.primaryGradient)
+                        } else {
+                            Capsule()
+                                .fill(AppTheme.buttonInactiveBackground)
+                        }
+                    }
                 )
                 .overlay(
                     Capsule()
-                        .stroke(selectedPersonID != nil ? Color.white.opacity(0.2) : AppTheme.buttonInactiveBorder, lineWidth: 1)
+                        .stroke(selectedPersonID != nil ? Color.clear : AppTheme.buttonInactiveBorder, lineWidth: 1)
                 )
             }
             .buttonStyle(ScaleButtonStyle())
@@ -255,6 +263,7 @@ struct HistoryView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
+            .padding(.bottom, 100)  // Allow content to scroll behind tab bar
         }
         .refreshable {
             await refreshDoodles()
@@ -445,16 +454,23 @@ struct FilterPill: View {
         Button(action: action) {
             Text(title)
                 .font(.custom("Avenir-Heavy", size: 14))
-                .foregroundColor(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
+                .foregroundColor(isSelected ? .white : AppTheme.textSecondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(
-                    Capsule()
-                        .fill(isSelected ? Color.white.opacity(0.15) : AppTheme.buttonInactiveBackground)
+                    Group {
+                        if isSelected {
+                            Capsule()
+                                .fill(AppTheme.primaryGradient)
+                        } else {
+                            Capsule()
+                                .fill(AppTheme.buttonInactiveBackground)
+                        }
+                    }
                 )
                 .overlay(
                     Capsule()
-                        .stroke(isSelected ? Color.white.opacity(0.2) : AppTheme.buttonInactiveBorder, lineWidth: 1)
+                        .stroke(isSelected ? Color.clear : AppTheme.buttonInactiveBorder, lineWidth: 1)
                 )
         }
         .buttonStyle(ScaleButtonStyle())

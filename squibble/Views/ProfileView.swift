@@ -50,7 +50,7 @@ struct ProfileView: View {
                     friendsSection
                         .padding(.top, 20)
 
-                    Spacer().frame(height: 20)
+                    Spacer().frame(height: 100)  // Allow content to scroll behind tab bar
                 }
             }
             .scrollContentBackground(.hidden)
@@ -58,9 +58,6 @@ struct ProfileView: View {
             // Banner ad for free users
             BannerAdContainer()
                 .padding(.top, 8)
-
-            // Space for tab bar
-            Spacer().frame(height: 100)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
