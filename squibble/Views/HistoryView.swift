@@ -60,7 +60,7 @@ struct HistoryView: View {
                 } else {
                     // Chats mode - conversation list
                     ConversationListView()
-                        .padding(.top, 2 * safeAreaTop + headerContentHeight + 16)
+                        .padding(.top, 2 * safeAreaTop + headerContentHeight + 12 + 16)
                 }
 
                 // Banner ad for free users
@@ -136,9 +136,9 @@ struct HistoryView: View {
                         .padding(.bottom, 8)
                 }
             }
-            .padding(.top, 2 * safeAreaTop)  // Match ProfileView: content at 2*safeAreaTop from screen top
+            .padding(.top, 2 * safeAreaTop + 12)  // Match ProfileView/HomeView: extra 12pt for breathing room
         }
-        .frame(height: 2 * safeAreaTop + headerContentHeight)
+        .frame(height: 2 * safeAreaTop + headerContentHeight + 12)
     }
 
     // MARK: - Header Bar
@@ -292,7 +292,7 @@ struct HistoryView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 2 * safeAreaTop + headerContentHeight + 16)  // Start below floating header
+            .padding(.top, 2 * safeAreaTop + headerContentHeight + 12 + 16)  // Start below floating header
             .padding(.bottom, 100)  // Allow content to scroll behind tab bar
         }
         .refreshable {
