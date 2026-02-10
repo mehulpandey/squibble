@@ -76,10 +76,12 @@ final class NotificationManager: ObservableObject {
     func parseNotification(userInfo: [AnyHashable: Any]) -> NotificationAction? {
         // Expected payload structure:
         // {
-        //   "type": "new_doodle" | "friend_request" | "friend_accepted",
+        //   "type": "new_doodle" | "friend_request" | "friend_accepted" | "new_text_message" | "new_reaction",
         //   "doodle_id": "uuid" (for new_doodle),
         //   "sender_id": "uuid",
-        //   "sender_name": "Name"
+        //   "sender_name": "Name",
+        //   "conversation_id": "uuid" (for new_text_message, new_reaction),
+        //   "emoji": "👍" (for new_reaction)
         // }
 
         guard let type = userInfo["type"] as? String else { return nil }
@@ -98,6 +100,13 @@ final class NotificationManager: ObservableObject {
         case "friend_accepted":
             return .openHome
 
+        case "new_text_message", "new_reaction":
+            if let conversationIDString = userInfo["conversation_id"] as? String,
+               let conversationID = UUID(uuidString: conversationIDString) {
+                return .openConversation(conversationID)
+            }
+            return .openHistory
+
         default:
             return nil
         }
@@ -111,4 +120,5 @@ enum NotificationAction {
     case openHistory
     case openAddFriends
     case openHome
+    case openConversation(UUID)
 }

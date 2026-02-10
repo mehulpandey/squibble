@@ -89,7 +89,6 @@ struct ConversationThreadView: View {
             ChatSettingsView(conversation: conversation)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.modalGradient)
         }
     }
 

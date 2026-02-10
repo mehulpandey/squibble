@@ -30,13 +30,6 @@ struct ChatSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Drag handle
-            Capsule()
-                .fill(AppTheme.textTertiary.opacity(0.5))
-                .frame(width: 40, height: 4)
-                .padding(.top, 12)
-                .padding(.bottom, 20)
-
             // Avatar and name
             VStack(spacing: 12) {
                 avatar
@@ -45,6 +38,7 @@ struct ChatSettingsView: View {
                     .font(.custom("Avenir-Heavy", size: 22))
                     .foregroundColor(AppTheme.textPrimary)
             }
+            .padding(.top, 24)
             .padding(.bottom, 24)
 
             // Settings options

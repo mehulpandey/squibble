@@ -176,6 +176,10 @@ final class NavigationManager: ObservableObject {
 
         case .openHome:
             selectedTab = .home
+
+        case .openConversation(let conversationID):
+            pendingConversationID = conversationID
+            selectedTab = .history
         }
     }
 }

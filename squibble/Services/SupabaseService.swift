@@ -139,6 +139,18 @@ final class SupabaseService {
             .execute()
     }
 
+    func getDoodleRecipients(doodleID: UUID) async throws -> [User] {
+        // Fetch recipients with user info joined
+        let response: [DoodleRecipientWithUser] = try await client
+            .from("doodle_recipients")
+            .select("recipient_id, users!doodle_recipients_recipient_id_fkey(*)")
+            .eq("doodle_id", value: doodleID.uuidString)
+            .execute()
+            .value
+
+        return response.compactMap { $0.user }
+    }
+
     // MARK: - Friendship Operations
 
     func createFriendRequest(requesterID: UUID, addresseeID: UUID) async throws {
@@ -557,5 +569,18 @@ final class SupabaseService {
             .eq("thread_item_id", value: threadItemID.uuidString)
             .execute()
             .value
+    }
+}
+
+// MARK: - Helper Structs for Joined Queries
+
+/// Helper struct for decoding doodle recipients with joined user data
+private struct DoodleRecipientWithUser: Codable {
+    let recipientID: UUID
+    let user: User?
+
+    enum CodingKeys: String, CodingKey {
+        case recipientID = "recipient_id"
+        case user = "users"
     }
 }

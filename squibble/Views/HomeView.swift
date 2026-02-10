@@ -70,7 +70,6 @@ struct HomeView: View {
             )
             .presentationDetents([.height(450)])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showBrushSize) {
             BrushSizeSlider(lineWidth: drawingState.selectedTool == .eraser
@@ -78,7 +77,6 @@ struct HomeView: View {
                 : $drawingState.penLineWidth)
                 .presentationDetents([.height(180)])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showSendSheet, onDismiss: handleSheetDismiss) {
             SendSheet(
@@ -91,7 +89,6 @@ struct HomeView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showAddFriends) {
             AddFriendsView()
@@ -106,7 +103,6 @@ struct HomeView: View {
             )
             .presentationDetents([.height(320)])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .fullScreenCover(isPresented: $showUpgrade) {
             UpgradeView()

@@ -26,6 +26,10 @@ struct DoodleReactionOverlay: View {
     @State private var showShareSheet = false
     @State private var shareImage: UIImage?
     @State private var selectedEmoji: String?  // For immediate visual feedback
+    @State private var recipients: [User] = []
+    @State private var isLoadingRecipients = false
+    @State private var showRecipientsList = false
+    @State private var showForwardSheet = false
 
     private var isSentByMe: Bool {
         doodle.senderID == currentUserID
@@ -52,35 +56,37 @@ struct DoodleReactionOverlay: View {
             VStack(spacing: 16) {
                 Spacer()
 
-                // Sender info
-                senderInfo
+                // Sender/recipient info
+                headerInfo
                     .scaleEffect(isAnimatingIn ? 1.0 : 0.9)
                     .opacity(isAnimatingIn ? 1.0 : 0)
 
-                // Reaction picker
-                ReactionPicker(
-                    currentEmoji: selectedEmoji ?? currentEmoji,
-                    onSelect: { emoji in
-                        // Immediate visual feedback
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            selectedEmoji = emoji
-                        }
-                        // Haptic feedback
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                        // Send reaction
-                        onReactionSelected(emoji)
-                        // Auto-dismiss quickly
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                // Reaction picker - only show for received doodles
+                if !isSentByMe {
+                    ReactionPicker(
+                        currentEmoji: selectedEmoji ?? currentEmoji,
+                        onSelect: { emoji in
+                            // Immediate visual feedback
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                selectedEmoji = emoji
+                            }
+                            // Haptic feedback
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
+                            // Send reaction
+                            onReactionSelected(emoji)
+                            // Auto-dismiss quickly
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                dismissWithAnimation()
+                            }
+                        },
+                        onDismiss: {
                             dismissWithAnimation()
                         }
-                    },
-                    onDismiss: {
-                        dismissWithAnimation()
-                    }
-                )
-                .scaleEffect(isAnimatingIn ? 1.0 : 0.8)
-                .opacity(isAnimatingIn ? 1.0 : 0)
+                    )
+                    .scaleEffect(isAnimatingIn ? 1.0 : 0.8)
+                    .opacity(isAnimatingIn ? 1.0 : 0)
+                }
 
                 // Enlarged doodle
                 CachedAsyncImage(urlString: doodle.imageURL)
@@ -112,37 +118,86 @@ struct DoodleReactionOverlay: View {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 isAnimatingIn = true
             }
+
+            // Load recipients for sent doodles
+            if isSentByMe {
+                Task {
+                    await loadRecipients()
+                }
+            }
         }
         .sheet(isPresented: $showShareSheet) {
             if let image = shareImage {
                 ShareSheet(items: [image])
             }
         }
+        .sheet(isPresented: $showRecipientsList) {
+            RecipientListSheet(recipients: recipients)
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showForwardSheet) {
+            ForwardDoodleSheet(doodle: doodle, onDismiss: {
+                showForwardSheet = false
+            })
+        }
     }
 
-    // MARK: - Sender Info
+    // MARK: - Header Info
 
-    private var senderInfo: some View {
+    private var headerInfo: some View {
         HStack(spacing: 8) {
-            if let sender = sender {
-                Text(isSentByMe ? "You" : sender.displayName)
+            if isSentByMe {
+                // Show recipients for sent doodles
+                sentToInfo
+            } else if let sender = sender {
+                // Show sender for received doodles
+                Text(sender.displayName)
                     .font(.custom("Avenir-Heavy", size: 16))
                     .foregroundColor(AppTheme.textPrimary)
+            }
 
-                if isSentByMe {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppTheme.primaryStart)
-                }
+            Text("•")
+                .font(.custom("Avenir-Regular", size: 16))
+                .foregroundColor(AppTheme.textTertiary)
 
-                Text("•")
-                    .font(.custom("Avenir-Regular", size: 16))
-                    .foregroundColor(AppTheme.textTertiary)
+            Text(formatDate(doodle.createdAt))
+                .font(.custom("Avenir-Regular", size: 16))
+                .foregroundColor(AppTheme.textSecondary)
+        }
+    }
 
-                Text(formatDate(doodle.createdAt))
+    @ViewBuilder
+    private var sentToInfo: some View {
+        if isLoadingRecipients {
+            Text("Sent to...")
+                .font(.custom("Avenir-Heavy", size: 16))
+                .foregroundColor(AppTheme.textPrimary)
+        } else if recipients.count == 1, let recipient = recipients.first {
+            HStack(spacing: 4) {
+                Text("Sent to")
                     .font(.custom("Avenir-Regular", size: 16))
                     .foregroundColor(AppTheme.textSecondary)
+                Text(recipient.displayName)
+                    .font(.custom("Avenir-Heavy", size: 16))
+                    .foregroundColor(AppTheme.textPrimary)
             }
+        } else if recipients.count > 1 {
+            HStack(spacing: 4) {
+                Text("Sent to")
+                    .font(.custom("Avenir-Regular", size: 16))
+                    .foregroundColor(AppTheme.textSecondary)
+                Button(action: {
+                    showRecipientsList = true
+                }) {
+                    Text("\(recipients.count) people")
+                        .font(.custom("Avenir-Heavy", size: 16))
+                        .foregroundColor(AppTheme.primaryStart)
+                }
+            }
+        } else {
+            Text("Sent")
+                .font(.custom("Avenir-Heavy", size: 16))
+                .foregroundColor(AppTheme.textPrimary)
         }
     }
 
@@ -172,36 +227,45 @@ struct DoodleReactionOverlay: View {
             }
             .buttonStyle(ScaleButtonStyle())
 
-            // Reply button
-            Button(action: replyToDoodle) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 16, weight: .medium))
-                    Text("Reply")
-                        .font(.custom("Avenir-Heavy", size: 15))
-                }
-                .foregroundColor(isSentByMe ? AppTheme.textTertiary : .white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(
-                    Group {
-                        if isSentByMe {
-                            Capsule()
-                                .fill(Color.white.opacity(0.08))
-                        } else {
-                            Capsule()
-                                .fill(AppTheme.primaryGradient)
-                        }
+            if isSentByMe {
+                // Forward button for sent doodles
+                Button(action: { showForwardSheet = true }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrowshape.turn.up.forward.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Forward")
+                            .font(.custom("Avenir-Heavy", size: 15))
                     }
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(isSentByMe ? Color.white.opacity(0.15) : Color.clear, lineWidth: 1)
-                )
-                .shadow(color: isSentByMe ? .clear : AppTheme.primaryGlow.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.primaryGradient)
+                    )
+                    .shadow(color: AppTheme.primaryGlow.opacity(0.4), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(ScaleButtonStyle())
+            } else {
+                // Reply button for received doodles
+                Button(action: replyToDoodle) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrowshape.turn.up.left.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Reply")
+                            .font(.custom("Avenir-Heavy", size: 15))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.primaryGradient)
+                    )
+                    .shadow(color: AppTheme.primaryGlow.opacity(0.4), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(ScaleButtonStyle())
             }
-            .disabled(isSentByMe)
-            .buttonStyle(ScaleButtonStyle())
         }
     }
 
@@ -250,6 +314,276 @@ struct DoodleReactionOverlay: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             withAnimation(.easeInOut(duration: 0.3)) {
                 navigationManager.selectedTab = .home
+            }
+        }
+    }
+
+    private func loadRecipients() async {
+        isLoadingRecipients = true
+        do {
+            recipients = try await SupabaseService.shared.getDoodleRecipients(doodleID: doodle.id)
+        } catch {
+            print("Failed to load recipients: \(error)")
+        }
+        isLoadingRecipients = false
+    }
+}
+
+// MARK: - Recipient List Sheet
+
+struct RecipientListSheet: View {
+    let recipients: [User]
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(recipients) { recipient in
+                HStack(spacing: 12) {
+                    // Avatar
+                    if let profileURL = recipient.profileImageURL {
+                        CachedAsyncImage(urlString: profileURL)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(hex: recipient.colorHex), lineWidth: 2)
+                            )
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: recipient.colorHex))
+                                .frame(width: 44, height: 44)
+                            Text(recipient.initials)
+                                .font(.custom("Avenir-Heavy", size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
+
+                    Text(recipient.displayName)
+                        .font(.custom("Avenir-Medium", size: 17))
+                        .foregroundColor(AppTheme.textPrimary)
+
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+            }
+            .listStyle(.plain)
+            .navigationTitle("Sent to")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(AppTheme.primaryStart)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Forward Doodle Sheet
+
+struct ForwardDoodleSheet: View {
+    let doodle: Doodle
+    let onDismiss: () -> Void
+
+    @EnvironmentObject var friendManager: FriendManager
+    @EnvironmentObject var doodleManager: DoodleManager
+    @EnvironmentObject var authManager: AuthManager
+
+    @State private var selectedFriendIDs: Set<UUID> = []
+    @State private var isSending = false
+    @State private var showSuccess = false
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Friend list
+                if friendManager.friends.isEmpty {
+                    emptyState
+                } else {
+                    friendList
+                }
+
+                // Send button
+                if !selectedFriendIDs.isEmpty {
+                    sendButton
+                        .padding()
+                }
+            }
+            .navigationTitle("Forward Doodle")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                        onDismiss()
+                    }
+                    .foregroundColor(AppTheme.textSecondary)
+                }
+            }
+        }
+        .overlay {
+            if showSuccess {
+                successOverlay
+            }
+        }
+    }
+
+    private var friendList: some View {
+        List(friendManager.friends) { friend in
+            Button(action: {
+                toggleFriend(friend.id)
+            }) {
+                HStack(spacing: 12) {
+                    // Checkbox
+                    Image(systemName: selectedFriendIDs.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24))
+                        .foregroundColor(selectedFriendIDs.contains(friend.id) ? AppTheme.primaryStart : AppTheme.textTertiary)
+
+                    // Avatar
+                    if let profileURL = friend.profileImageURL {
+                        CachedAsyncImage(urlString: profileURL)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(hex: friend.colorHex), lineWidth: 2)
+                            )
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: friend.colorHex))
+                                .frame(width: 44, height: 44)
+                            Text(friend.initials)
+                                .font(.custom("Avenir-Heavy", size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
+
+                    Text(friend.displayName)
+                        .font(.custom("Avenir-Medium", size: 17))
+                        .foregroundColor(AppTheme.textPrimary)
+
+                    Spacer()
+                }
+            }
+            .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "person.2.slash")
+                .font(.system(size: 48))
+                .foregroundColor(AppTheme.textTertiary)
+            Text("No friends to forward to")
+                .font(.custom("Avenir-Medium", size: 17))
+                .foregroundColor(AppTheme.textSecondary)
+            Spacer()
+        }
+    }
+
+    private var sendButton: some View {
+        Button(action: forwardDoodle) {
+            HStack {
+                if isSending {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                } else {
+                    Image(systemName: "paperplane.fill")
+                    Text("Forward to \(selectedFriendIDs.count) \(selectedFriendIDs.count == 1 ? "friend" : "friends")")
+                }
+            }
+            .font(.custom("Avenir-Heavy", size: 17))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(
+                Capsule()
+                    .fill(AppTheme.primaryGradient)
+            )
+            .shadow(color: AppTheme.primaryGlow.opacity(0.4), radius: 8, x: 0, y: 4)
+        }
+        .disabled(isSending)
+    }
+
+    private var successOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(.green)
+                Text("Forwarded!")
+                    .font(.custom("Avenir-Heavy", size: 20))
+                    .foregroundColor(.white)
+            }
+        }
+    }
+
+    private func toggleFriend(_ id: UUID) {
+        if selectedFriendIDs.contains(id) {
+            selectedFriendIDs.remove(id)
+        } else {
+            selectedFriendIDs.insert(id)
+        }
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+    }
+
+    private func forwardDoodle() {
+        guard let userID = authManager.currentUserID else { return }
+
+        isSending = true
+
+        Task {
+            do {
+                // Forward doodle to selected friends (add new recipients)
+                try await SupabaseService.shared.addDoodleRecipients(
+                    doodleID: doodle.id,
+                    recipientIDs: Array(selectedFriendIDs)
+                )
+
+                // Create conversations/thread items for each new recipient
+                for recipientID in selectedFriendIDs {
+                    if let conversationID = try? await SupabaseService.shared.getOrCreateDirectConversation(
+                        userA: userID,
+                        userB: recipientID
+                    ) {
+                        try? await SupabaseService.shared.createThreadItemForDoodle(
+                            conversationID: conversationID,
+                            senderID: userID,
+                            doodleID: doodle.id
+                        )
+                    }
+                }
+
+                await MainActor.run {
+                    showSuccess = true
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.success)
+                }
+
+                // Dismiss after success
+                try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                await MainActor.run {
+                    dismiss()
+                    onDismiss()
+                }
+            } catch {
+                print("Failed to forward doodle: \(error)")
+                await MainActor.run {
+                    isSending = false
+                }
             }
         }
     }

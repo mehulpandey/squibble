@@ -71,7 +71,6 @@ struct HistoryView: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .task {
             await loadDoodles()
@@ -524,11 +523,22 @@ struct DoodleGridItem: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: geometry.size.width, height: geometry.size.width)
 
-                // Sender badge - bottom left
+                // Sender badge - bottom left (sent icon for sent doodles, initials for received)
                 VStack {
                     Spacer()
                     HStack {
-                        if let sender = sender {
+                        if isSentByMe {
+                            // Sent icon for doodles you sent
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 20, height: 20)
+                                .background(AppTheme.primaryGradient)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                .padding(6)
+                        } else if let sender = sender {
+                            // Sender initials for received doodles
                             Text(sender.initials)
                                 .font(.custom("Avenir-Heavy", size: 8))
                                 .foregroundColor(.white)

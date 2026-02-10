@@ -125,7 +125,6 @@ struct MoreOptionsSheet: View {
             )
             .presentationDetents([.height(420)])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .onChange(of: selectedPhoto) { newValue in

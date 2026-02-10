@@ -40,43 +40,44 @@ struct AddFriendsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Dark ambient background
-                AmbientBackground()
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Invite section
+                    inviteSection
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Invite section
-                        inviteSection
+                    // Add by code section
+                    addByCodeSection
 
-                        // Add by code section
-                        addByCodeSection
-
-                        // Friend requests section (if any)
-                        if !friendManager.pendingRequests.isEmpty {
-                            friendRequestsSection
-                        }
-
-                        // Outgoing requests section (if any)
-                        if !friendManager.outgoingRequests.isEmpty {
-                            outgoingRequestsSection
-                        }
-
-                        // Friends list
-                        friendsListSection
-
-                        Spacer().frame(height: 40)
+                    // Friend requests section (if any)
+                    if !friendManager.pendingRequests.isEmpty {
+                        friendRequestsSection
                     }
-                    .padding(.top, 16)
+
+                    // Outgoing requests section (if any)
+                    if !friendManager.outgoingRequests.isEmpty {
+                        outgoingRequestsSection
+                    }
+
+                    // Friends list
+                    friendsListSection
+
+                    Spacer().frame(height: 40)
                 }
-                .refreshable {
-                    await refreshFriends()
+                .padding(.top, 16)
+            }
+            .refreshable {
+                await refreshFriends()
+            }
+            .navigationTitle("Friends")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(AppTheme.primaryStart)
                 }
             }
-            .safeAreaInset(edge: .top) {
-                headerBar
-            }
-            .navigationBarHidden(true)
             .alert("Remove Friend", isPresented: $showRemoveConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Remove", role: .destructive) {
@@ -96,41 +97,6 @@ struct AddFriendsView: View {
                 UpgradeView()
             }
         }
-    }
-
-    // MARK: - Header Bar
-
-    private var headerBar: some View {
-        HStack {
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppTheme.textSecondary)
-                    .frame(width: 36, height: 36)
-                    .background(AppTheme.glassBackgroundStrong)
-                    .overlay(
-                        Circle()
-                            .stroke(AppTheme.glassBorder, lineWidth: 1)
-                    )
-                    .clipShape(Circle())
-            }
-
-            Spacer()
-
-            Text("Friends")
-                .font(.custom("Avenir-Heavy", size: 20))
-                .foregroundColor(AppTheme.textPrimary)
-
-            Spacer()
-
-            // Invisible spacer for centering
-            Color.clear
-                .frame(width: 36, height: 36)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(AppTheme.backgroundTop.opacity(0.8))
     }
 
     // MARK: - Invite Section
