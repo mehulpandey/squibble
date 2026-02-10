@@ -175,7 +175,7 @@ struct HomeView: View {
         .padding(.horizontal, 20)
         .padding(.top, (UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0) + 12)  // Extra padding for breathing room
+            .first?.windows.first?.safeAreaInsets.top ?? 0) * 0.6)
     }
 
     // MARK: - Canvas Container

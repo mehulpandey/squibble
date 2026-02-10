@@ -55,7 +55,7 @@ struct BannerAdView: UIViewRepresentable {
     }
 }
 
-// MARK: - Banner Ad Container
+// MARK: - Banner Ad Container (Fixed position)
 
 struct BannerAdContainer: View {
     @EnvironmentObject var userManager: UserManager
@@ -71,6 +71,26 @@ struct BannerAdContainer: View {
                 .frame(height: 50)
                 .frame(maxWidth: .infinity)
                 .background(Color(hex: "F5F5F5"))
+        }
+    }
+}
+
+// MARK: - Inline Banner Ad Container (for scrolling content)
+
+struct InlineBannerAdContainer: View {
+    @EnvironmentObject var userManager: UserManager
+
+    private var shouldShowAd: Bool {
+        guard let user = userManager.currentUser else { return true }
+        return !user.isPremium
+    }
+
+    var body: some View {
+        if shouldShowAd {
+            BannerAdView(adUnitID: Config.AdMob.bannerAdUnitID)
+                .frame(height: 50)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
         }
     }
 }

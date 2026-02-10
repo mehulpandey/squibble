@@ -27,16 +27,22 @@ struct ProfileView: View {
         userManager.currentUser
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerBar
+    private var safeAreaTop: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 0
+    }
 
+    private var headerContentHeight: CGFloat { 56 }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Content layer (scrolls behind header)
             ScrollView {
                 VStack(spacing: 0) {
                     // Profile header
                     profileHeader
-                        .padding(.top, 16)
+                        .padding(.top, 1.6 * safeAreaTop + headerContentHeight + 16)
 
                     // Stats row
                     statsRow
@@ -44,6 +50,10 @@ struct ProfileView: View {
 
                     // Activity calendar
                     activitySection
+                        .padding(.top, 20)
+
+                    // Banner ad for free users (between activity and friends)
+                    BannerAdContainer()
                         .padding(.top, 20)
 
                     // Friends list
@@ -55,10 +65,10 @@ struct ProfileView: View {
             }
             .scrollContentBackground(.hidden)
 
-            // Banner ad for free users
-            BannerAdContainer()
-                .padding(.top, 8)
+            // Floating header at top
+            floatingHeader
         }
+        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
@@ -80,6 +90,20 @@ struct ProfileView: View {
                 loadAndUploadPhoto(from: newValue)
             }
         }
+    }
+
+    // MARK: - Floating Header
+
+    private var floatingHeader: some View {
+        ZStack(alignment: .top) {
+            // Semi-transparent background
+            AppTheme.backgroundTop.opacity(0.95)
+
+            // Content layer
+            headerBar
+                .padding(.top, 1.6 * safeAreaTop)
+        }
+        .frame(height: 1.6 * safeAreaTop + headerContentHeight)
     }
 
     // MARK: - Header Bar
@@ -107,9 +131,6 @@ struct ProfileView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, (UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0) + 12)  // Extra padding for breathing room
     }
 
     // MARK: - Profile Header

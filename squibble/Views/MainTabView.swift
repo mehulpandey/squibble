@@ -127,6 +127,7 @@ struct CustomTabBar: View {
             Capsule()
                 .stroke(Color.white.opacity(0.15), lineWidth: 1)
         )
+        .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 100)
         .padding(.bottom, 8)
     }

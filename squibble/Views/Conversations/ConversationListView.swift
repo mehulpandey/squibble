@@ -11,6 +11,8 @@ struct ConversationListView: View {
     @EnvironmentObject var conversationManager: ConversationManager
     @EnvironmentObject var authManager: AuthManager
 
+    let topPadding: CGFloat  // Padding to push content below floating header
+
     @State private var selectedConversation: ConversationSummary?
 
     var body: some View {
@@ -34,10 +36,24 @@ struct ConversationListView: View {
 
     // MARK: - Conversation List
 
+    /// Calculates positions where inline ads should appear (after 9 items, then every 12)
+    private func inlineAdPositions(totalItems: Int) -> Set<Int> {
+        guard totalItems >= 9 else { return [] }
+        var positions: Set<Int> = [9]
+        var nextPosition = 21
+        while nextPosition <= totalItems {
+            positions.insert(nextPosition)
+            nextPosition += 12
+        }
+        return positions
+    }
+
     private var conversationList: some View {
-        ScrollView {
+        let adPositions = inlineAdPositions(totalItems: conversationManager.conversations.count)
+
+        return ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(conversationManager.conversations) { conversation in
+                ForEach(Array(conversationManager.conversations.enumerated()), id: \.element.id) { index, conversation in
                     ConversationRow(conversation: conversation)
                         .onTapGesture {
                             selectedConversation = conversation
@@ -47,9 +63,17 @@ struct ConversationListView: View {
                         .fill(AppTheme.divider)
                         .frame(height: 1)
                         .padding(.leading, 76)
+
+                    // Insert inline ad after this conversation if position matches
+                    if adPositions.contains(index + 1) {
+                        InlineBannerAdContainer()
+                            .padding(.horizontal, -20)  // Extend to full width
+                    }
                 }
             }
             .padding(.horizontal, 20)
+            .padding(.top, topPadding)
+            .padding(.bottom, 100)
         }
         .refreshable {
             guard let userID = authManager.currentUserID else { return }
@@ -87,6 +111,7 @@ struct ConversationListView: View {
             Spacer()
         }
         .padding(.horizontal, 40)
+        .padding(.top, topPadding)
     }
 
     // MARK: - Loading View
@@ -99,6 +124,7 @@ struct ConversationListView: View {
                 .scaleEffect(1.2)
             Spacer()
         }
+        .padding(.top, topPadding)
     }
 }
 
@@ -185,7 +211,7 @@ struct ConversationRow: View {
 }
 
 #Preview {
-    ConversationListView()
+    ConversationListView(topPadding: 120)
         .environmentObject(ConversationManager.shared)
         .environmentObject(AuthManager())
 }

@@ -46,26 +46,18 @@ struct HistoryView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Content layer (scrolls behind header)
-            VStack(spacing: 0) {
-                // Content based on view mode
-                if viewMode == .grid {
-                    if doodleManager.isLoading {
-                        loadingView
-                    } else if filteredDoodles.isEmpty {
-                        emptyStateView
-                    } else {
-                        doodleGrid
-                    }
+            // Content based on view mode
+            if viewMode == .grid {
+                if doodleManager.isLoading {
+                    loadingView
+                } else if filteredDoodles.isEmpty {
+                    emptyStateView
                 } else {
-                    // Chats mode - conversation list
-                    ConversationListView()
-                        .padding(.top, 2 * safeAreaTop + headerContentHeight + 12 + 16)
+                    doodleGrid
                 }
-
-                // Banner ad for free users
-                BannerAdContainer()
-                    .padding(.top, 8)
+            } else {
+                // Chats mode - conversation list
+                ConversationListView(topPadding: 1.6 * safeAreaTop + headerContentHeight + 16)
             }
 
             // Floating header at top
@@ -122,9 +114,8 @@ struct HistoryView: View {
 
     private var floatingHeader: some View {
         ZStack(alignment: .top) {
-            // Blur background
-            VisualEffectBlur(blurStyle: .dark)
-                .opacity(0.9)
+            // Semi-transparent background
+            AppTheme.backgroundTop.opacity(0.95)
 
             // Content layer
             VStack(spacing: 0) {
@@ -136,9 +127,9 @@ struct HistoryView: View {
                         .padding(.bottom, 8)
                 }
             }
-            .padding(.top, 2 * safeAreaTop + 12)  // Match ProfileView/HomeView: extra 12pt for breathing room
+            .padding(.top, 1.6 * safeAreaTop)
         }
-        .frame(height: 2 * safeAreaTop + headerContentHeight + 12)
+        .frame(height: 1.6 * safeAreaTop + headerContentHeight)
     }
 
     // MARK: - Header Bar
@@ -160,47 +151,21 @@ struct HistoryView: View {
     // MARK: - View Mode Toggle
 
     private var viewModeToggle: some View {
-        HStack(spacing: 4) {
-            ForEach(HistoryViewMode.allCases, id: \.self) { mode in
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewMode = mode
-                    }
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                }) {
-                    Image(systemName: mode == .grid ? "square.grid.2x2" : "bubble.left.and.bubble.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(viewMode == mode ? AppTheme.textPrimary : AppTheme.textSecondary)
-                        .frame(width: 42, height: 42)
-                        .background(
-                            Group {
-                                if viewMode == mode {
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.15))
-                                } else {
-                                    Capsule()
-                                        .fill(Color.clear)
-                                }
-                            }
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(viewMode == mode ? Color.white.opacity(0.2) : Color.clear, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(PlainButtonStyle())
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                viewMode = viewMode == .grid ? .chats : .grid
             }
+        }) {
+            // Show filled icon for the view you'll switch TO
+            Image(systemName: viewMode == .grid ? "bubble.left.and.bubble.right.fill" : "square.grid.2x2.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(AppTheme.textSecondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
-        .padding(4)
-        .background(
-            Capsule()
-                .fill(AppTheme.buttonInactiveBackground)
-        )
-        .overlay(
-            Capsule()
-                .stroke(AppTheme.buttonInactiveBorder, lineWidth: 1)
-        )
+        .buttonStyle(ViewModeToggleButtonStyle())
     }
 
     // MARK: - Filter Bar
@@ -262,38 +227,70 @@ struct HistoryView: View {
 
     // MARK: - Doodle Grid
 
+    /// Calculates positions where inline ads should appear (after 9 items, then every 12)
+    private func inlineAdPositions(totalItems: Int) -> Set<Int> {
+        guard totalItems >= 9 else { return [] }
+        var positions: Set<Int> = [9]  // First ad after 9 items
+        var nextPosition = 21  // Then 21, 33, 45, etc.
+        while nextPosition <= totalItems {
+            positions.insert(nextPosition)
+            nextPosition += 12
+        }
+        return positions
+    }
+
     private var doodleGrid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3),
-                spacing: 4
-            ) {
-                ForEach(filteredDoodles) { doodle in
-                    DoodleGridItem(
-                        doodle: doodle,
-                        sender: getSender(for: doodle),
-                        isSentByMe: doodle.senderID == authManager.currentUserID,
-                        reactionEmoji: doodleReactions[doodle.id],
-                        onTap: {
-                            // Show overlay via NavigationManager (covers tab bar)
-                            navigationManager.showGridOverlay(
+        let adPositions = inlineAdPositions(totalItems: filteredDoodles.count)
+
+        return ScrollView {
+            LazyVStack(spacing: 4) {
+                // Group doodles into rows of 3
+                let rows = stride(from: 0, to: filteredDoodles.count, by: 3).map { startIndex in
+                    Array(filteredDoodles[startIndex..<min(startIndex + 3, filteredDoodles.count)])
+                }
+
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, rowDoodles in
+                    // Doodle row
+                    HStack(spacing: 4) {
+                        ForEach(rowDoodles) { doodle in
+                            DoodleGridItem(
                                 doodle: doodle,
-                                currentEmoji: doodleReactions[doodle.id],
-                                onReaction: { emoji in
-                                    handleGridReaction(doodle: doodle, emoji: emoji)
-                                },
-                                onDismiss: {
-                                    // Refresh reactions after dismiss
-                                    Task { await loadReactions() }
+                                sender: getSender(for: doodle),
+                                isSentByMe: doodle.senderID == authManager.currentUserID,
+                                reactionEmoji: doodleReactions[doodle.id],
+                                onTap: {
+                                    navigationManager.showGridOverlay(
+                                        doodle: doodle,
+                                        currentEmoji: doodleReactions[doodle.id],
+                                        onReaction: { emoji in
+                                            handleGridReaction(doodle: doodle, emoji: emoji)
+                                        },
+                                        onDismiss: {
+                                            Task { await loadReactions() }
+                                        }
+                                    )
                                 }
                             )
                         }
-                    )
+                        // Fill empty slots in incomplete rows
+                        if rowDoodles.count < 3 {
+                            ForEach(0..<(3 - rowDoodles.count), id: \.self) { _ in
+                                Color.clear
+                                    .aspectRatio(1, contentMode: .fit)
+                            }
+                        }
+                    }
+
+                    // Insert inline ad after this row if position matches
+                    let itemsAfterThisRow = (rowIndex + 1) * 3
+                    if adPositions.contains(itemsAfterThisRow) {
+                        InlineBannerAdContainer()
+                    }
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 2 * safeAreaTop + headerContentHeight + 12 + 16)  // Start below floating header
-            .padding(.bottom, 100)  // Allow content to scroll behind tab bar
+            .padding(.top, 1.6 * safeAreaTop + headerContentHeight + 16)
+            .padding(.bottom, 100)
         }
         .refreshable {
             await refreshDoodles()
@@ -756,6 +753,16 @@ struct PersonFilterRow: View {
             Circle()
                 .stroke(friendColor, lineWidth: 2.5)
         )
+    }
+}
+
+// MARK: - View Mode Toggle Button Style
+
+struct ViewModeToggleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

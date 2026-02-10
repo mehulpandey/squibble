@@ -95,30 +95,12 @@ struct ConversationThreadView: View {
 
     // MARK: - Floating Header
 
-    private let headerFadeHeight: CGFloat = 25
-
     private var floatingHeader: some View {
         ZStack(alignment: .top) {
-            // Blur background that extends below content with fading edge
-            VisualEffectBlur(blurStyle: .dark)
-                .opacity(0.9)
-                .frame(height: safeAreaTop + 60 + headerFadeHeight)
-                .mask(
-                    VStack(spacing: 0) {
-                        // Solid area where content lives
-                        Color.black
-                            .frame(height: safeAreaTop + 60)
-                        // Fade area below content
-                        LinearGradient(
-                            colors: [Color.black, Color.clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: headerFadeHeight)
-                    }
-                )
+            // Semi-transparent background
+            AppTheme.backgroundTop.opacity(0.95)
 
-            // Content layer (not affected by mask)
+            // Content layer
             HStack {
                 // Back button
                 Button(action: { dismiss() }) {
@@ -159,7 +141,7 @@ struct ConversationThreadView: View {
             .padding(.bottom, 12)
             .padding(.top, safeAreaTop + 8)
         }
-        .frame(height: safeAreaTop + 60 + headerFadeHeight)
+        .frame(height: safeAreaTop + 60)
     }
 
     // MARK: - Thread Content
@@ -169,7 +151,7 @@ struct ConversationThreadView: View {
             ScrollView {
                 LazyVStack(spacing: 4) {
                     // Top padding for floating header
-                    Color.clear.frame(height: safeAreaTop + 70)
+                    Color.clear.frame(height: safeAreaTop + 60)
 
                     let items = conversationManager.currentConversationItems.reversed()
                     let itemsArray = Array(items)
