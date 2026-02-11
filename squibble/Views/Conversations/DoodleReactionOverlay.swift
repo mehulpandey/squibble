@@ -13,6 +13,8 @@ struct DoodleReactionOverlay: View {
     let threadItemID: UUID?  // nil if viewing from grid (not in a conversation context)
     let currentUserID: UUID
     let currentEmoji: String?
+    let preloadedReactionSummary: ReactionSummary?  // Pre-loaded from grid cache
+    let preloadedRecipients: [User]?  // Pre-loaded from cache
     let onReactionSelected: (String) -> Void
     let onDismiss: () -> Void
 
@@ -30,6 +32,29 @@ struct DoodleReactionOverlay: View {
     @State private var isLoadingRecipients = false
     @State private var showRecipientsList = false
     @State private var showForwardSheet = false
+    @State private var reactionSummary: ReactionSummary = .empty
+    @State private var showReactorsSheet = false
+
+    // Convenience init with default nil for pre-loaded data
+    init(
+        doodle: Doodle,
+        threadItemID: UUID?,
+        currentUserID: UUID,
+        currentEmoji: String?,
+        preloadedReactionSummary: ReactionSummary? = nil,
+        preloadedRecipients: [User]? = nil,
+        onReactionSelected: @escaping (String) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.doodle = doodle
+        self.threadItemID = threadItemID
+        self.currentUserID = currentUserID
+        self.currentEmoji = currentEmoji
+        self.preloadedReactionSummary = preloadedReactionSummary
+        self.preloadedRecipients = preloadedRecipients
+        self.onReactionSelected = onReactionSelected
+        self.onDismiss = onDismiss
+    }
 
     private var isSentByMe: Bool {
         doodle.senderID == currentUserID
@@ -88,15 +113,23 @@ struct DoodleReactionOverlay: View {
                     .opacity(isAnimatingIn ? 1.0 : 0)
                 }
 
-                // Enlarged doodle
-                CachedAsyncImage(urlString: doodle.imageURL)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: UIScreen.main.bounds.width - 48)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
-                    .scaleEffect(isAnimatingIn ? 1.0 : 0.7)
-                    .opacity(isAnimatingIn ? 1.0 : 0)
+                // Enlarged doodle with overlaid reactions badge
+                ZStack(alignment: .bottomTrailing) {
+                    CachedAsyncImage(urlString: doodle.imageURL)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: UIScreen.main.bounds.width - 48)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 10)
+
+                    // Aggregated reactions badge (for sent doodles) - overlaid on bottom-right
+                    if isSentByMe && !reactionSummary.isEmpty {
+                        aggregatedReactionsBadge
+                            .offset(x: -12, y: -12)
+                    }
+                }
+                .scaleEffect(isAnimatingIn ? 1.0 : 0.7)
+                .opacity(isAnimatingIn ? 1.0 : 0)
 
                 // Action buttons (Delete / Reply)
                 actionButtons
@@ -119,10 +152,24 @@ struct DoodleReactionOverlay: View {
                 isAnimatingIn = true
             }
 
-            // Load recipients for sent doodles
+            // Use pre-loaded data if available, otherwise fetch
             if isSentByMe {
+                // Use cached data immediately if available
+                if let cached = preloadedReactionSummary {
+                    reactionSummary = cached
+                }
+                if let cached = preloadedRecipients {
+                    recipients = cached
+                }
+
+                // Only fetch what we don't have
                 Task {
-                    await loadRecipients()
+                    if preloadedRecipients == nil {
+                        await loadRecipients()
+                    }
+                    if preloadedReactionSummary == nil {
+                        await loadAggregatedReactions()
+                    }
                 }
             }
         }
@@ -139,6 +186,11 @@ struct DoodleReactionOverlay: View {
             ForwardDoodleSheet(doodle: doodle, onDismiss: {
                 showForwardSheet = false
             })
+        }
+        .sheet(isPresented: $showReactorsSheet) {
+            ReactorsListSheet(reactions: reactionSummary.reactions)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -320,12 +372,46 @@ struct DoodleReactionOverlay: View {
 
     private func loadRecipients() async {
         isLoadingRecipients = true
-        do {
-            recipients = try await SupabaseService.shared.getDoodleRecipients(doodleID: doodle.id)
-        } catch {
-            print("Failed to load recipients: \(error)")
-        }
+        recipients = await ConversationManager.shared.loadRecipients(doodleID: doodle.id)
         isLoadingRecipients = false
+    }
+
+    private func loadAggregatedReactions() async {
+        reactionSummary = await ConversationManager.shared.loadAggregatedReactions(doodleID: doodle.id)
+    }
+
+    /// Tappable aggregated reactions badge for sent doodles
+    private var aggregatedReactionsBadge: some View {
+        Button(action: { showReactorsSheet = true }) {
+            HStack(spacing: 2) {
+                // Top emojis (up to 3)
+                ForEach(reactionSummary.topEmojis.prefix(3), id: \.self) { emoji in
+                    Text(emoji)
+                        .font(.system(size: 18))
+                }
+
+                // Count
+                if reactionSummary.totalCount > 1 {
+                    Text("\(reactionSummary.totalCount)")
+                        .font(.custom("Avenir-Heavy", size: 14))
+                        .foregroundColor(AppTheme.textPrimary)
+                        .padding(.leading, 2)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.8)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
@@ -370,6 +456,65 @@ struct RecipientListSheet: View {
             }
             .listStyle(.plain)
             .navigationTitle("Sent to")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(AppTheme.primaryStart)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Reactors List Sheet
+
+struct ReactorsListSheet: View {
+    let reactions: [AggregatedReaction]
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(reactions) { reaction in
+                HStack(spacing: 12) {
+                    // Avatar
+                    if let profileURL = reaction.profileImageURL {
+                        CachedAsyncImage(urlString: profileURL)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(hex: reaction.colorHex), lineWidth: 2)
+                            )
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: reaction.colorHex))
+                                .frame(width: 44, height: 44)
+                            Text(String(reaction.displayName.prefix(2)).uppercased())
+                                .font(.custom("Avenir-Heavy", size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
+
+                    // Name
+                    Text(reaction.displayName)
+                        .font(.custom("Avenir-Medium", size: 17))
+                        .foregroundColor(AppTheme.textPrimary)
+
+                    Spacer()
+
+                    // Emoji reaction
+                    Text(reaction.emoji)
+                        .font(.system(size: 24))
+                }
+                .listRowBackground(Color.clear)
+            }
+            .listStyle(.plain)
+            .navigationTitle("Reactions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

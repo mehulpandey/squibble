@@ -31,7 +31,7 @@ struct HistoryView: View {
     @State private var showPersonFilter = false
     @State private var selectedPersonID: UUID?
     @State private var hasRetriedPendingDoodle = false
-    @State private var doodleReactions: [UUID: String] = [:]  // Cache of reactions by doodle ID
+    @State private var doodleReactionSummaries: [UUID: ReactionSummary] = [:]  // Aggregated reactions cache
 
     private var safeAreaTop: CGFloat {
         UIApplication.shared.connectedScenes
@@ -252,15 +252,18 @@ struct HistoryView: View {
                     // Doodle row
                     HStack(spacing: 4) {
                         ForEach(rowDoodles) { doodle in
+                            let summary = doodleReactionSummaries[doodle.id] ?? .empty
+                            let isSentByMe = doodle.senderID == authManager.currentUserID
                             DoodleGridItem(
                                 doodle: doodle,
                                 sender: getSender(for: doodle),
-                                isSentByMe: doodle.senderID == authManager.currentUserID,
-                                reactionEmoji: doodleReactions[doodle.id],
+                                isSentByMe: isSentByMe,
+                                reactionSummary: summary,
                                 onTap: {
                                     navigationManager.showGridOverlay(
                                         doodle: doodle,
-                                        currentEmoji: doodleReactions[doodle.id],
+                                        currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: summary),
+                                        reactionSummary: isSentByMe ? summary : nil,
                                         onReaction: { emoji in
                                             handleGridReaction(doodle: doodle, emoji: emoji)
                                         },
@@ -397,6 +400,13 @@ struct HistoryView: View {
         return friendManager.friends.first { $0.id == doodle.senderID }
     }
 
+    /// Extract current user's emoji from a reaction summary (for received doodles)
+    private func getCurrentUserEmoji(from summary: ReactionSummary?) -> String? {
+        guard let userID = authManager.currentUserID,
+              let summary = summary else { return nil }
+        return summary.reactions.first { $0.userID == userID }?.emoji
+    }
+
     private func loadDoodles() async {
         guard let userID = authManager.currentUserID else { return }
         await doodleManager.loadDoodles(for: userID)
@@ -409,12 +419,13 @@ struct HistoryView: View {
     }
 
     private func loadReactions() async {
-        guard let userID = authManager.currentUserID else { return }
         let doodleIDs = doodleManager.allDoodles.map { $0.id }
         guard !doodleIDs.isEmpty else { return }
 
-        let reactions = await conversationManager.loadReactionsForDoodles(doodleIDs: doodleIDs, userID: userID)
-        doodleReactions = reactions
+        // Only update if successful - preserve cache on error
+        if let summaries = await conversationManager.loadAggregatedReactionsForDoodles(doodleIDs: doodleIDs) {
+            doodleReactionSummaries = summaries
+        }
     }
 
     private func tryOpenPendingDoodle() {
@@ -425,9 +436,12 @@ struct HistoryView: View {
 
         // Find and open the doodle
         if let doodle = doodleManager.allDoodles.first(where: { $0.id == pendingDoodleID }) {
+            let isSentByMe = doodle.senderID == authManager.currentUserID
+            let summary = doodleReactionSummaries[doodle.id]
             navigationManager.showGridOverlay(
                 doodle: doodle,
-                currentEmoji: doodleReactions[doodle.id],
+                currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: summary),
+                reactionSummary: isSentByMe ? summary : nil,
                 onReaction: { emoji in
                     handleGridReaction(doodle: doodle, emoji: emoji)
                 },
@@ -446,17 +460,32 @@ struct HistoryView: View {
     }
 
     private func handleGridReaction(doodle: Doodle, emoji: String) {
-        guard let userID = authManager.currentUserID else { return }
+        guard let userID = authManager.currentUserID,
+              let currentUser = userManager.currentUser else { return }
 
         // Update local cache immediately for responsive UI
-        let existingEmoji = doodleReactions[doodle.id]
-        if existingEmoji == emoji {
+        var summary = doodleReactionSummaries[doodle.id] ?? .empty
+        let existingReaction = summary.reactions.first { $0.userID == userID }
+
+        if existingReaction?.emoji == emoji {
             // Toggle off - remove reaction
-            doodleReactions.removeValue(forKey: doodle.id)
+            let updatedReactions = summary.reactions.filter { $0.userID != userID }
+            summary = buildSummary(from: updatedReactions, doodleID: doodle.id)
         } else {
-            // Set new reaction
-            doodleReactions[doodle.id] = emoji
+            // Add/update reaction
+            var updatedReactions = summary.reactions.filter { $0.userID != userID }
+            let newReaction = AggregatedReaction(
+                doodleID: doodle.id,
+                userID: userID,
+                displayName: currentUser.displayName,
+                profileImageURL: currentUser.profileImageURL,
+                colorHex: currentUser.colorHex,
+                emoji: emoji
+            )
+            updatedReactions.append(newReaction)
+            summary = buildSummary(from: updatedReactions, doodleID: doodle.id)
         }
+        doodleReactionSummaries[doodle.id] = summary
 
         // Persist to server
         Task {
@@ -466,6 +495,24 @@ struct HistoryView: View {
                 emoji: emoji
             )
         }
+    }
+
+    /// Build a ReactionSummary from a list of reactions
+    private func buildSummary(from reactions: [AggregatedReaction], doodleID: UUID) -> ReactionSummary {
+        if reactions.isEmpty { return .empty }
+
+        var emojiCounts: [String: Int] = [:]
+        for reaction in reactions {
+            emojiCounts[reaction.emoji, default: 0] += 1
+        }
+        let sorted = emojiCounts.sorted { $0.value > $1.value }
+        let topEmojis = Array(sorted.prefix(3).map { $0.key })
+
+        return ReactionSummary(
+            topEmojis: topEmojis,
+            totalCount: reactions.count,
+            reactions: reactions
+        )
     }
 }
 
@@ -509,11 +556,16 @@ struct DoodleGridItem: View {
     let doodle: Doodle
     let sender: User?
     let isSentByMe: Bool
-    let reactionEmoji: String?  // User's reaction on this doodle
+    let reactionSummary: ReactionSummary
     let onTap: () -> Void
 
     @State private var didLongPress = false
     @State private var isHolding = false
+
+    /// Badge background color: subtle white for sent doodles (reactions from others), blue tint for received (my reaction)
+    private var badgeBackground: Color {
+        isSentByMe ? Color.white.opacity(0.5) : Color(hex: "0084FF").opacity(0.25)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -523,22 +575,11 @@ struct DoodleGridItem: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: geometry.size.width, height: geometry.size.width)
 
-                // Sender badge - bottom left (sent icon for sent doodles, initials for received)
-                VStack {
-                    Spacer()
-                    HStack {
-                        if isSentByMe {
-                            // Sent icon for doodles you sent
-                            Image(systemName: "paperplane.fill")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 20, height: 20)
-                                .background(AppTheme.primaryGradient)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                                .padding(6)
-                        } else if let sender = sender {
-                            // Sender initials for received doodles
+                // Sender badge - bottom left (only for received doodles)
+                if !isSentByMe, let sender = sender {
+                    VStack {
+                        Spacer()
+                        HStack {
                             Text(sender.initials)
                                 .font(.custom("Avenir-Heavy", size: 8))
                                 .foregroundColor(.white)
@@ -547,27 +588,19 @@ struct DoodleGridItem: View {
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                                 .padding(6)
+                            Spacer()
                         }
-                        Spacer()
                     }
                 }
 
-                // Reaction badge - bottom right (matches initials badge size/shadow)
-                if let emoji = reactionEmoji {
+                // Reaction badge - bottom right
+                if !reactionSummary.isEmpty {
                     VStack {
                         Spacer()
                         HStack {
                             Spacer()
-                            Text(emoji)
-                                .font(.system(size: 12))
-                                .frame(width: 20, height: 20)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(0.65))
-                                )
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                                .padding(6)
+                            reactionBadge
+                                .padding(4)
                         }
                     }
                 }
@@ -607,6 +640,46 @@ struct DoodleGridItem: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// Aggregated reaction badge showing emojis and count
+    @ViewBuilder
+    private var reactionBadge: some View {
+        HStack(spacing: 1) {
+            // Show top emojis (up to 3)
+            ForEach(reactionSummary.topEmojis.prefix(3), id: \.self) { emoji in
+                Text(emoji)
+                    .font(.system(size: reactionSummary.totalCount == 1 ? 12 : 10))
+            }
+
+            // Show count if 2+ reactions
+            if reactionSummary.totalCount > 1 {
+                Text("\(reactionSummary.totalCount)")
+                    .font(.custom("Avenir-Heavy", size: 9))
+                    .foregroundColor(AppTheme.textPrimary)
+            }
+        }
+        .padding(.horizontal, reactionSummary.totalCount == 1 ? 4 : 6)
+        .padding(.vertical, 3)
+        .background(
+            Group {
+                if isSentByMe {
+                    // Sent doodles: frosted glass with white stroke (matches detail view)
+                    Capsule().fill(.ultraThinMaterial).opacity(0.8)
+                } else {
+                    // Received doodles: blue tint
+                    Capsule().fill(badgeBackground)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isSentByMe {
+                    Capsule().stroke(Color.white.opacity(0.4), lineWidth: 1)
+                }
+            }
+        )
+        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
     }
 }
 

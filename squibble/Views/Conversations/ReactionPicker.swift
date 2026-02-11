@@ -72,10 +72,15 @@ struct ReactionDisplay: View {
                     .frame(width: 28, height: 28)
                     .background(
                         Circle()
-                            .fill(Color.white.opacity(0.65))
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.8)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.4), lineWidth: 1)
                     )
                     .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
             }
         }
     }
@@ -106,10 +111,15 @@ struct ReactionDisplay: View {
                 .frame(width: 28, height: 28)
                 .background(
                     Circle()
-                        .fill(Color.white.opacity(0.65))
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.8)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.4), lineWidth: 1)
                 )
                 .clipShape(Circle())
-                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
             }
         }
     }

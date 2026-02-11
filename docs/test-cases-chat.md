@@ -7,7 +7,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 1. History Tab - View Mode Toggle
 
-### [ ] TC-1.1: Grid/Chats Toggle Display
+### [x] TC-1.1: Grid/Chats Toggle Display
 **Steps:**
 1. Open app and navigate to History tab
 2. Observe the header area
@@ -17,7 +17,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Current mode is visually highlighted
 - Toggle has gray background with selected item showing white highlight
 
-### [ ] TC-1.2: Switch to Chats Mode
+### [x] TC-1.2: Switch to Chats Mode
 **Steps:**
 1. From History tab in Grid mode
 2. Tap the chat bubbles icon
@@ -28,7 +28,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Filter bar disappears (only visible in Grid mode)
 - Conversation list appears
 
-### [ ] TC-1.3: Switch to Grid Mode
+### [x] TC-1.3: Switch to Grid Mode
 **Steps:**
 1. From History tab in Chats mode
 2. Tap the grid icon
@@ -213,15 +213,26 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 6. Doodle Tap Interaction (Thread)
 
-### [ ] TC-6.1: Tap Doodle in Thread
+### [ ] TC-6.1: Tap Received Doodle in Thread
 **Steps:**
-1. In thread view, tap on any doodle
+1. In thread view, tap on a doodle you received
 
 **Expected:**
 - Doodle overlay opens (fullscreen)
 - Shows enlarged doodle
-- Reaction picker visible
+- Reaction picker visible (6 emoji options)
 - Share and Reply buttons visible
+
+### [ ] TC-6.1b: Tap Sent Doodle in Thread
+**Steps:**
+1. In thread view, tap on a doodle you sent
+
+**Expected:**
+- Doodle overlay opens (fullscreen)
+- Shows enlarged doodle
+- NO reaction picker (can't react to own doodle)
+- Shows aggregated reactions badge if recipients have reacted
+- Share and Forward buttons visible
 
 ### [ ] TC-6.2: Long Press Doodle
 **Steps:**
@@ -307,14 +318,14 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ### [ ] TC-8.3: Reaction Badge on Grid Item
 **Steps:**
-1. Add reaction to a doodle via grid
+1. Add reaction to a received doodle via grid
 2. View the doodle in grid
 
 **Expected:**
 - Small emoji badge visible on bottom-right of grid item
-- White circular background behind emoji
+- Blue-tinted background (for your reaction on received doodle)
 - Shadow for visibility
-- Matches style of initials badge (bottom-left)
+- See TC-14 for aggregated reactions on sent doodles
 
 ### [ ] TC-8.4: Reaction Syncs Between Views
 **Steps:**
@@ -361,14 +372,15 @@ Test cases for the conversation threading and reactions features added in `featu
 - Sender pre-selected as recipient
 - Ready to draw reply
 
-### [ ] TC-9.3: Reply Button (Sent Doodle)
+### [ ] TC-9.3: Forward Button (Sent Doodle)
 **Steps:**
 1. Open overlay for a doodle you sent
-2. Observe Reply button
+2. Observe action buttons
 
 **Expected:**
-- Reply button disabled/grayed out
-- Cannot reply to your own doodle
+- "Forward" button shown instead of "Reply"
+- Forward button is active and tappable
+- See TC-15 for full Forward flow testing
 
 ---
 
@@ -491,6 +503,189 @@ Test cases for the conversation threading and reactions features added in `featu
 **Expected:**
 - Reaction still visible
 - Synced from server
+
+---
+
+## 14. Aggregated Reactions (Sent Doodles)
+
+### [ ] TC-14.1: Single Reaction Badge
+**Steps:**
+1. Send a doodle to one friend
+2. Have friend react with an emoji
+3. View doodle in Grid mode
+
+**Expected:**
+- Reaction badge shows single emoji (e.g., "😂")
+- Badge has white/light background (Messenger-style for received reactions)
+- Badge positioned in bottom-right corner
+
+### [ ] TC-14.2: Multiple Reactions Badge
+**Steps:**
+1. Send a doodle to 3+ friends
+2. Have 2 friends react with same emoji, 1 with different
+3. View doodle in Grid mode
+
+**Expected:**
+- Badge shows top emojis by frequency + count (e.g., "😂❤️2" or "😂😂❤️3")
+- Up to 3 different emojis shown
+- Count shown when 2+ total reactions
+
+### [ ] TC-14.3: Aggregated Badge in Detail View
+**Steps:**
+1. Send doodle to multiple friends who react
+2. Tap doodle in Grid to open overlay
+
+**Expected:**
+- Aggregated reactions badge visible below doodle image
+- Shows same format as grid badge (top emojis + count)
+- Badge is tappable
+
+### [ ] TC-14.4: Reactors List Popup
+**Steps:**
+1. Open detail overlay for sent doodle with reactions
+2. Tap the aggregated reactions badge
+
+**Expected:**
+- Sheet slides up with "Reactions" title
+- Shows list of people who reacted
+- Each row shows: avatar, name, and their emoji reaction
+- "Done" button dismisses sheet
+- Glassy background style (matches other sheets)
+
+### [ ] TC-14.5: Color Differentiation - Sent vs Received
+**Steps:**
+1. View Grid with both sent and received doodles that have reactions
+2. Compare reaction badge backgrounds
+
+**Expected:**
+- Sent doodles (reactions from others): White/light badge background
+- Received doodles (your reaction): Blue-tinted badge background
+- Clear visual distinction between the two
+
+### [ ] TC-14.6: No Reaction Picker for Sent Doodles
+**Steps:**
+1. Open detail overlay for a doodle you sent
+
+**Expected:**
+- Reaction picker NOT shown (can't react to own doodle)
+- Only see: header info, doodle image, reactions badge (if any), Forward/Share buttons
+
+---
+
+## 15. Forward Doodle
+
+### [ ] TC-15.1: Forward Button Display
+**Steps:**
+1. Open detail overlay for a doodle you sent
+
+**Expected:**
+- "Forward" button visible (instead of Reply)
+- Button has forward arrow icon
+
+### [ ] TC-15.2: Forward Sheet Opens
+**Steps:**
+1. Open detail overlay for sent doodle
+2. Tap "Forward" button
+
+**Expected:**
+- Forward sheet slides up
+- Shows friend list with checkboxes
+- "Cancel" button in header
+- No send button until friends selected
+
+### [ ] TC-15.3: Select Friends to Forward
+**Steps:**
+1. Open forward sheet
+2. Tap multiple friends
+
+**Expected:**
+- Checkboxes toggle on/off
+- Haptic feedback on selection
+- Send button appears when 1+ friends selected
+- Button shows count (e.g., "Forward to 2 friends")
+
+### [ ] TC-15.4: Forward Success
+**Steps:**
+1. Select friends and tap send
+2. Wait for completion
+
+**Expected:**
+- Loading indicator while sending
+- Success overlay with checkmark
+- Sheet auto-dismisses after ~1 second
+- Doodle now visible in those friends' conversations
+
+### [ ] TC-15.5: Forward Empty State
+**Steps:**
+1. Remove all friends
+2. Try to forward a doodle
+
+**Expected:**
+- Empty state shown with "No friends to forward to" message
+- Person icon displayed
+
+---
+
+## 16. Recipients List (Sent Doodles)
+
+### [ ] TC-16.1: Single Recipient Display
+**Steps:**
+1. Send doodle to one friend
+2. Open doodle in detail overlay
+
+**Expected:**
+- Header shows "Sent to [Friend Name]"
+- Name is not tappable (no popup needed)
+
+### [ ] TC-16.2: Multiple Recipients Display
+**Steps:**
+1. Send doodle to 3 friends
+2. Open doodle in detail overlay
+
+**Expected:**
+- Header shows "Sent to 3 people"
+- "3 people" is tappable (orange color)
+
+### [ ] TC-16.3: Recipients List Popup
+**Steps:**
+1. Open doodle sent to multiple people
+2. Tap "X people" link
+
+**Expected:**
+- Sheet slides up with "Sent to" title
+- Shows list of all recipients
+- Each row shows avatar and name
+- "Done" button dismisses sheet
+
+---
+
+## 17. Sheet Styling Consistency
+
+### [ ] TC-17.1: Glassy Background
+**Steps:**
+1. Open various sheets (Send, Friends, Chat Settings, Reactions, Recipients)
+
+**Expected:**
+- All sheets have glassy/semi-transparent background
+- No opaque dark backgrounds
+- System drag indicator visible at top
+
+### [ ] TC-17.2: Navigation Bar Style
+**Steps:**
+1. Open sheets with navigation bars
+
+**Expected:**
+- Inline title display
+- Orange "Done" button in top-right
+- Consistent across all sheets
+
+### [ ] TC-17.3: List Row Backgrounds
+**Steps:**
+1. Open sheets with lists (Friends, Recipients, Reactions)
+
+**Expected:**
+- List rows have clear/transparent backgrounds
+- Content visible through glassy sheet background
 
 ---
 

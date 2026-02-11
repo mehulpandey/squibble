@@ -26,12 +26,23 @@ final class NavigationManager: ObservableObject {
     // Grid overlay state (shown at MainTabView level to cover tab bar)
     @Published var gridOverlayDoodle: Doodle?
     @Published var gridOverlayReactionEmoji: String?
+    @Published var gridOverlayReactionSummary: ReactionSummary?
+    @Published var gridOverlayRecipients: [User]?
     var gridOverlayOnReaction: ((String) -> Void)?
     var gridOverlayOnDismiss: (() -> Void)?
 
-    func showGridOverlay(doodle: Doodle, currentEmoji: String?, onReaction: @escaping (String) -> Void, onDismiss: @escaping () -> Void) {
+    func showGridOverlay(
+        doodle: Doodle,
+        currentEmoji: String?,
+        reactionSummary: ReactionSummary? = nil,
+        recipients: [User]? = nil,
+        onReaction: @escaping (String) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
         gridOverlayDoodle = doodle
         gridOverlayReactionEmoji = currentEmoji
+        gridOverlayReactionSummary = reactionSummary
+        gridOverlayRecipients = recipients
         gridOverlayOnReaction = onReaction
         gridOverlayOnDismiss = onDismiss
     }
@@ -39,6 +50,8 @@ final class NavigationManager: ObservableObject {
     func dismissGridOverlay() {
         gridOverlayDoodle = nil
         gridOverlayReactionEmoji = nil
+        gridOverlayReactionSummary = nil
+        gridOverlayRecipients = nil
         gridOverlayOnReaction = nil
         gridOverlayOnDismiss = nil
     }

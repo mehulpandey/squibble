@@ -353,7 +353,7 @@ async function handleNotification(
 
   switch (payload.type) {
     case "new_doodle":
-      title = "New Squibble!";
+      title = "Squibble";
       body = `${payload.sender_name} sent you a doodle!`;
       if (payload.doodle_id) data.doodle_id = payload.doodle_id;
       if (payload.sender_id) data.sender_id = payload.sender_id;
@@ -362,26 +362,26 @@ async function handleNotification(
       break;
 
     case "friend_request":
-      title = "Friend Request";
+      title = "Squibble";
       body = `${payload.sender_name} wants to connect with you`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
       break;
 
     case "friend_accepted":
-      title = "Request Accepted!";
+      title = "Squibble";
       body = `${payload.sender_name} accepted your friend request`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
       break;
 
     case "new_text_message":
-      title = payload.sender_name || "New Message";
-      body = payload.text_preview || "Sent you a message";
+      title = "Squibble";
+      body = `${payload.sender_name}: ${payload.text_preview || "Sent you a message"}`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
       if (payload.conversation_id) data.conversation_id = payload.conversation_id;
       break;
 
     case "new_reaction":
-      title = "New Reaction";
+      title = "Squibble";
       body = `${payload.sender_name} reacted ${payload.emoji || ""} to your ${payload.image_url ? "doodle" : "message"}`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
       if (payload.conversation_id) data.conversation_id = payload.conversation_id;

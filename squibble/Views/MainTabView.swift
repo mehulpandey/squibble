@@ -70,6 +70,8 @@ struct MainTabView: View {
                     threadItemID: nil,
                     currentUserID: userID,
                     currentEmoji: navigationManager.gridOverlayReactionEmoji,
+                    preloadedReactionSummary: navigationManager.gridOverlayReactionSummary,
+                    preloadedRecipients: navigationManager.gridOverlayRecipients,
                     onReactionSelected: { emoji in
                         navigationManager.gridOverlayOnReaction?(emoji)
                     },

@@ -38,6 +38,9 @@ final class ConversationManager: ObservableObject {
         var loadedAt: Date
     }
 
+    // Cache for doodle recipients (keyed by doodle ID)
+    private var recipientsCache: [UUID: [User]] = [:]
+
     // MARK: - Initialization
 
     private init() {}
@@ -589,5 +592,87 @@ final class ConversationManager: ObservableObject {
         }
 
         return result
+    }
+
+    // MARK: - Aggregated Reactions
+
+    /// Load aggregated reactions for multiple doodles (for grid view)
+    /// Returns a dictionary of doodleID -> ReactionSummary, or nil on error
+    func loadAggregatedReactionsForDoodles(doodleIDs: [UUID]) async -> [UUID: ReactionSummary]? {
+        guard !doodleIDs.isEmpty else { return [:] }
+
+        do {
+            let reactions = try await SupabaseService.shared.getAggregatedReactions(doodleIDs: doodleIDs)
+            return buildReactionSummaries(from: reactions)
+        } catch {
+            print("Error loading aggregated reactions: \(error)")
+            return nil  // Return nil on error to preserve existing cache
+        }
+    }
+
+    /// Load aggregated reactions for a single doodle (for detail view)
+    func loadAggregatedReactions(doodleID: UUID) async -> ReactionSummary {
+        do {
+            let reactions = try await SupabaseService.shared.getAggregatedReactions(doodleID: doodleID)
+            let summaries = buildReactionSummaries(from: reactions)
+            return summaries[doodleID] ?? .empty
+        } catch {
+            print("Error loading aggregated reactions: \(error)")
+            return .empty
+        }
+    }
+
+    /// Build reaction summaries grouped by doodle
+    private func buildReactionSummaries(from reactions: [AggregatedReaction]) -> [UUID: ReactionSummary] {
+        // Group by doodle ID
+        let grouped = Dictionary(grouping: reactions) { $0.doodleID }
+
+        return grouped.mapValues { doodleReactions in
+            // Count emojis
+            var emojiCounts: [String: Int] = [:]
+            for reaction in doodleReactions {
+                emojiCounts[reaction.emoji, default: 0] += 1
+            }
+
+            // Sort by count descending, take top 3
+            let sorted = emojiCounts.sorted { $0.value > $1.value }
+            let topEmojis = Array(sorted.prefix(3).map { $0.key })
+
+            return ReactionSummary(
+                topEmojis: topEmojis,
+                totalCount: doodleReactions.count,
+                reactions: doodleReactions
+            )
+        }
+    }
+
+    // MARK: - Recipients Cache
+
+    /// Get cached recipients for a doodle, or nil if not cached
+    func getCachedRecipients(doodleID: UUID) -> [User]? {
+        return recipientsCache[doodleID]
+    }
+
+    /// Load recipients for a doodle, using cache if available
+    func loadRecipients(doodleID: UUID) async -> [User] {
+        // Return cached if available
+        if let cached = recipientsCache[doodleID] {
+            return cached
+        }
+
+        // Fetch from server
+        do {
+            let recipients = try await SupabaseService.shared.getDoodleRecipients(doodleID: doodleID)
+            recipientsCache[doodleID] = recipients
+            return recipients
+        } catch {
+            print("Error loading recipients: \(error)")
+            return []
+        }
+    }
+
+    /// Clear recipients cache (call when doodle is forwarded to new recipients)
+    func invalidateRecipientsCache(doodleID: UUID) {
+        recipientsCache.removeValue(forKey: doodleID)
     }
 }
