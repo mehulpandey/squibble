@@ -19,6 +19,7 @@ final class NavigationManager: ObservableObject {
     @Published var pendingInviteCode: String?
     @Published var pendingReplyRecipientID: UUID?
     @Published var pendingConversationID: UUID?
+    @Published var pendingConversationUserID: UUID?  // Find/create conversation with this user
     @Published var showAddFriends = false
     @Published var pendingHistoryFilter: DoodleFilter?
     @Published var showPasswordReset = false
@@ -172,6 +173,10 @@ final class NavigationManager: ObservableObject {
         pendingConversationID = nil
     }
 
+    func clearPendingConversationUser() {
+        pendingConversationUserID = nil
+    }
+
     // MARK: - Notification Actions
 
     func handleNotificationAction(_ action: NotificationAction) {
@@ -192,6 +197,10 @@ final class NavigationManager: ObservableObject {
 
         case .openConversation(let conversationID):
             pendingConversationID = conversationID
+            selectedTab = .history
+
+        case .openConversationWithUser(let userID):
+            pendingConversationUserID = userID
             selectedTab = .history
         }
     }

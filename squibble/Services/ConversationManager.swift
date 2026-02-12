@@ -17,6 +17,8 @@ final class ConversationManager: ObservableObject {
     @Published var conversations: [ConversationSummary] = []
     @Published var isLoading = false
     @Published var isLoadingThread = false
+    @Published var isLoadingMoreThreadItems = false
+    @Published var hasMoreThreadItems = true  // Assume there's more until proven otherwise
 
     // For thread view
     @Published var currentConversationID: UUID?
@@ -43,129 +45,300 @@ final class ConversationManager: ObservableObject {
 
     // MARK: - Initialization
 
-    private init() {}
+    private init() {
+        setupRealtimeCallbacks()
+    }
+
+    private func setupRealtimeCallbacks() {
+        RealtimeService.shared.onNewThreadItem = { [weak self] threadItem in
+            print("ConversationManager: CALLBACK RECEIVED for thread item \(threadItem.id)")
+            guard let self = self else {
+                print("ConversationManager: CALLBACK - self is nil!")
+                return
+            }
+            // Handle directly on main actor (we're already on it via @MainActor class)
+            Task { @MainActor in
+                self.handleRealtimeThreadItemSync(threadItem)
+                // Load doodle async if needed
+                await self.loadDoodleForRealtimeItem(threadItem)
+            }
+        }
+    }
+
+    /// Handle incoming thread item from realtime subscription (SYNCHRONOUS part)
+    private func handleRealtimeThreadItemSync(_ item: ThreadItem) {
+        print("ConversationManager: Processing realtime thread item \(item.id) for conversation \(item.conversationID)")
+
+        // 1. Update conversation list preview
+        updateConversationPreview(with: item)
+        print("ConversationManager: Updated preview for conversation \(item.conversationID)")
+
+        // 2. Update cache
+        updateCacheWithThreadItemSync(item)
+
+        // 3. Update thread view UI if this is the current conversation
+        guard currentConversationID == item.conversationID else {
+            print("ConversationManager: Item is for different conversation (current: \(String(describing: currentConversationID))), skipping UI update")
+            return
+        }
+
+        // Check if item already exists in UI (was added optimistically)
+        guard !currentConversationItems.contains(where: { $0.id == item.id }) else {
+            print("ConversationManager: Item already exists in UI, skipping")
+            return
+        }
+
+        print("ConversationManager: Adding realtime thread item \(item.id) to current UI")
+
+        // Add to beginning of list (most recent first)
+        currentConversationItems.insert(item, at: 0)
+    }
+
+    /// Load doodle for a realtime item (ASYNC part, called after sync processing)
+    private func loadDoodleForRealtimeItem(_ item: ThreadItem) async {
+        guard let doodleID = item.doodleID else { return }
+        guard currentConversationID == item.conversationID else { return }
+        guard currentConversationDoodles[doodleID] == nil else { return }
+
+        do {
+            let doodles = try await supabase.getDoodles(ids: [doodleID])
+            if let doodle = doodles.first {
+                currentConversationDoodles[doodleID] = doodle
+                // Also update cache
+                if var cached = threadCache[item.conversationID] {
+                    cached.doodles[doodleID] = doodle
+                    threadCache[item.conversationID] = cached
+                }
+            }
+        } catch {
+            print("Error loading doodle for realtime item: \(error)")
+        }
+    }
+
+    /// Update cache with a new thread item (SYNCHRONOUS - no await)
+    /// Called for ALL realtime items, regardless of which conversation is currently viewed
+    /// Doodles are NOT loaded here - they'll be loaded when the conversation is opened
+    private func updateCacheWithThreadItemSync(_ item: ThreadItem) {
+        // If no cache exists for this conversation, that's fine
+        // The cache will be populated when user opens the conversation
+        guard var cached = threadCache[item.conversationID] else {
+            print("ConversationManager: No cache exists for conversation \(item.conversationID), skipping cache update")
+            return
+        }
+
+        // Check if item already exists in cache (e.g., added optimistically)
+        guard !cached.items.contains(where: { $0.id == item.id }) else {
+            print("ConversationManager: Item already in cache, skipping")
+            return
+        }
+
+        // Add item to cache (doodles will be loaded when thread is viewed)
+        cached.items.insert(item, at: 0)
+        cached.loadedAt = Date()  // Mark cache as fresh
+        threadCache[item.conversationID] = cached
+        print("ConversationManager: Updated cache for conversation \(item.conversationID) (now has \(cached.items.count) items)")
+    }
+
+    /// Load any doodles that are referenced in cached items but not yet loaded
+    /// This handles doodles from realtime items that were cached without loading the doodle
+    private func loadMissingDoodlesFromCache(conversationID: UUID, cached: ThreadCache) async {
+        // Find doodle IDs that are in items but not in doodles dict
+        let missingDoodleIDs = cached.items.compactMap { item -> UUID? in
+            guard let doodleID = item.doodleID, cached.doodles[doodleID] == nil else {
+                return nil
+            }
+            return doodleID
+        }
+
+        guard !missingDoodleIDs.isEmpty else { return }
+
+        print("DEBUG loadThread: Loading \(missingDoodleIDs.count) missing doodles from cache")
+
+        do {
+            let doodles = try await supabase.getDoodles(ids: missingDoodleIDs)
+            for doodle in doodles {
+                currentConversationDoodles[doodle.id] = doodle
+            }
+
+            // Update cache with the loaded doodles
+            if var updatedCache = threadCache[conversationID] {
+                for doodle in doodles {
+                    updatedCache.doodles[doodle.id] = doodle
+                }
+                threadCache[conversationID] = updatedCache
+            }
+        } catch {
+            print("Error loading missing doodles: \(error)")
+        }
+    }
+
+    /// Update conversation list preview when a new thread item arrives
+    private func updateConversationPreview(with item: ThreadItem) {
+        guard let index = conversations.firstIndex(where: { $0.id == item.conversationID }) else {
+            return
+        }
+
+        let conv = conversations[index]
+        let updatedConversation = ConversationSummary(
+            id: conv.id,
+            type: conv.type,
+            updatedAt: item.createdAt,  // Update timestamp to new message time
+            otherParticipant: conv.otherParticipant,
+            lastItem: item,  // Update last item to show new preview
+            lastDoodle: nil,  // Will be loaded if needed, but preview text handles doodles
+            unreadCount: conv.unreadCount + 1,  // Increment unread (will be reset when opened)
+            muted: conv.muted
+        )
+
+        conversations[index] = updatedConversation
+
+        // Re-sort conversations by most recent
+        conversations.sort { $0.updatedAt > $1.updatedAt }
+
+        print("ConversationManager: Updated conversation preview for \(item.conversationID)")
+    }
 
     // MARK: - Load Conversations List
 
     /// Load all conversations for the current user
+    /// Uses batch RPC query to eliminate N+1 queries
     func loadConversations(for userID: UUID) async {
         isLoading = true
         defer { isLoading = false }
 
         do {
-            print("DEBUG ConversationManager: Loading conversations for user \(userID)")
-            // 1. Get user's participations
-            let participations = try await supabase.getConversationParticipations(for: userID)
-            print("DEBUG ConversationManager: Found \(participations.count) participations")
-            guard !participations.isEmpty else {
-                print("DEBUG ConversationManager: No participations found, returning empty")
+            print("DEBUG ConversationManager: Loading conversations (batch query) for user \(userID)")
+
+            // Single RPC call gets everything we need
+            let metadata = try await supabase.getConversationsWithMetadata(userID: userID)
+            print("DEBUG ConversationManager: Batch query returned \(metadata.count) conversations")
+
+            guard !metadata.isEmpty else {
+                print("DEBUG ConversationManager: No conversations found")
                 conversations = []
                 return
             }
 
-            let conversationIDs = participations.map { $0.conversationID }
-
-            // 2. Get conversations
-            let convos = try await supabase.getConversations(ids: conversationIDs)
-
-            // 3. Get all participants for these conversations
-            let allParticipants = try await supabase.getAllParticipants(conversationIDs: conversationIDs)
-
-            // 4. Get latest thread item for each conversation
-            var latestItems: [UUID: ThreadItem] = [:]
-            for convID in conversationIDs {
-                if let item = try? await supabase.getLatestThreadItem(conversationID: convID) {
-                    latestItems[convID] = item
-                }
+            // Fetch doodles for latest items that are doodles (still need this for image URLs)
+            let doodleIDs = metadata.compactMap { $0.latestItemDoodleID }
+            var doodleMap: [UUID: Doodle] = [:]
+            if !doodleIDs.isEmpty {
+                let doodles = try await supabase.getDoodles(ids: doodleIDs)
+                doodleMap = Dictionary(uniqueKeysWithValues: doodles.map { ($0.id, $0) })
             }
 
-            // 5. Get doodles for latest items
-            let doodleIDs = latestItems.values.compactMap { $0.doodleID }
-            let doodles = try await supabase.getDoodles(ids: doodleIDs)
-            let doodleMap = Dictionary(uniqueKeysWithValues: doodles.map { ($0.id, $0) })
-
-            // 6. Get other participants' user info
-            let otherUserIDs = allParticipants
-                .filter { $0.userID != userID }
-                .map { $0.userID }
-            let uniqueOtherUserIDs = Array(Set(otherUserIDs))
-            let otherUsers = try await supabase.getUsers(ids: uniqueOtherUserIDs)
-            let userMap = Dictionary(uniqueKeysWithValues: otherUsers.map { ($0.id, $0) })
-
-            // 7. Build summaries
+            // Convert to ConversationSummary
             var summaries: [ConversationSummary] = []
-            for conv in convos {
-                guard let myParticipation = participations.first(where: { $0.conversationID == conv.id }) else {
-                    continue
-                }
-
-                let otherParticipantID = allParticipants
-                    .first { $0.conversationID == conv.id && $0.userID != userID }?
-                    .userID
-
-                guard let otherID = otherParticipantID,
-                      let otherUser = userMap[otherID] else {
-                    continue
-                }
-
-                let lastItem = latestItems[conv.id]
-                let lastDoodle = lastItem?.doodleID.flatMap { doodleMap[$0] }
-
-                // Calculate unread count
-                let unreadCount = try await supabase.countUnreadItems(
-                    conversationID: conv.id,
-                    userID: userID,
-                    lastReadAt: myParticipation.lastReadAt
+            for item in metadata {
+                // Build User from metadata (only display-relevant fields matter)
+                let otherUser = User(
+                    id: item.otherUserID,
+                    displayName: item.otherUserDisplayName,
+                    profileImageURL: item.otherUserProfileImageURL,
+                    colorHex: item.otherUserColorHex,
+                    isPremium: false,
+                    streak: 0,
+                    totalDoodlesSent: 0,
+                    deviceToken: nil,
+                    inviteCode: "",
+                    createdAt: Date()
                 )
 
+                // Build ThreadItem if exists
+                var lastItem: ThreadItem?
+                if let itemID = item.latestItemID,
+                   let itemType = item.latestItemType,
+                   let senderID = item.latestItemSenderID,
+                   let createdAt = item.latestItemCreatedAt {
+                    lastItem = ThreadItem(
+                        id: itemID,
+                        conversationID: item.conversationID,
+                        senderID: senderID,
+                        type: ThreadItemType(rawValue: itemType) ?? .text,
+                        doodleID: item.latestItemDoodleID,
+                        textContent: item.latestItemTextContent,
+                        replyToItemID: nil,
+                        createdAt: createdAt
+                    )
+                }
+
+                let lastDoodle = item.latestItemDoodleID.flatMap { doodleMap[$0] }
+
                 let summary = ConversationSummary(
-                    id: conv.id,
-                    type: conv.type,
-                    updatedAt: conv.updatedAt,
+                    id: item.conversationID,
+                    type: ConversationType(rawValue: item.conversationType) ?? .direct,
+                    updatedAt: item.conversationUpdatedAt,
                     otherParticipant: otherUser,
                     lastItem: lastItem,
                     lastDoodle: lastDoodle,
-                    unreadCount: unreadCount,
-                    muted: myParticipation.muted
+                    unreadCount: item.unreadCount,
+                    muted: item.myMuted
                 )
                 summaries.append(summary)
             }
 
-            // Sort by most recent activity
-            conversations = summaries.sorted { $0.updatedAt > $1.updatedAt }
+            // Already sorted by RPC, but ensure order
+            conversations = summaries
+
+            // Subscribe to realtime updates for all conversations
+            let conversationIDs = summaries.map { $0.id }
+            await RealtimeService.shared.subscribeToConversations(conversationIDs)
 
         } catch {
-            print("Error loading conversations: \(error)")
-            conversations = []
+            print("ERROR ConversationManager: Failed to load conversations")
+            print("ERROR: \(error)")
+            print("ERROR localizedDescription: \(error.localizedDescription)")
+            if let decodingError = error as? DecodingError {
+                switch decodingError {
+                case .keyNotFound(let key, let context):
+                    print("ERROR: Missing key '\(key.stringValue)' at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .typeMismatch(let type, let context):
+                    print("ERROR: Type mismatch for '\(type)' at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .valueNotFound(let type, let context):
+                    print("ERROR: Value not found for '\(type)' at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .dataCorrupted(let context):
+                    print("ERROR: Data corrupted at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                @unknown default:
+                    print("ERROR: Unknown decoding error")
+                }
+            }
+            // Don't clear conversations on error - preserve existing data
+            // conversations = []
         }
     }
 
     // MARK: - Load Thread Items
 
     /// Load thread items for a specific conversation
-    /// Uses caching to avoid re-fetching recent data
+    /// Always fetches from server, but uses cache for instant display
     func loadThread(conversationID: UUID, limit: Int = 50, forceRefresh: Bool = false) async {
+        print("DEBUG loadThread: Starting for conversation \(conversationID), forceRefresh=\(forceRefresh)")
         currentConversationID = conversationID
+        hasMoreThreadItems = true  // Reset pagination state
 
-        // Check cache first (unless force refresh)
-        if !forceRefresh, let cached = threadCache[conversationID] {
-            // Use cached data immediately
+        // Use cache for INSTANT display (don't wait for server)
+        // This provides immediate UI feedback while we fetch fresh data
+        if let cached = threadCache[conversationID] {
             currentConversationItems = cached.items
             currentConversationDoodles = cached.doodles
             currentConversationReactions = cached.reactions
-
-            // If cache is recent (< 30 seconds), don't refetch
-            if Date().timeIntervalSince(cached.loadedAt) < 30 {
-                return
-            }
+            print("DEBUG loadThread: Showing cached data immediately (\(cached.items.count) items)")
         }
 
-        // Fetch from server
-        isLoadingThread = threadCache[conversationID] == nil  // Only show loading if no cache
+        // For forceRefresh, we keep showing existing data while fetching fresh
+        // Don't clear cache - let the new data replace it when it arrives
+
+        // ALWAYS fetch from server to ensure we have latest data
+        // (realtime updates may have been missed)
+
+        // Only show loading spinner if we have no data to display
+        isLoadingThread = currentConversationItems.isEmpty
         defer { isLoadingThread = false }
 
         do {
+            print("DEBUG loadThread: Fetching from server...")
             let items = try await supabase.getThreadItems(conversationID: conversationID, limit: limit)
+            print("DEBUG loadThread: Fetched \(items.count) items from server")
 
             // Load associated doodles
             var doodlesDict: [UUID: Doodle] = [:]
@@ -193,12 +366,15 @@ final class ConversationManager: ObservableObject {
 
             // Update published properties (only if still viewing this conversation)
             if currentConversationID == conversationID {
+                print("DEBUG loadThread: Updating UI with \(items.count) items")
                 currentConversationItems = items
                 currentConversationDoodles = doodlesDict
                 currentConversationReactions = reactionsDict
+            } else {
+                print("DEBUG loadThread: Conversation changed, skipping UI update (current: \(String(describing: currentConversationID)), loaded: \(conversationID))")
             }
         } catch {
-            print("Error loading thread: \(error)")
+            print("DEBUG loadThread: Error - \(error)")
             // Only clear if no cache exists
             if threadCache[conversationID] == nil {
                 currentConversationItems = []
@@ -208,11 +384,17 @@ final class ConversationManager: ObservableObject {
         }
     }
 
-    /// Load more (older) thread items
+    /// Load more (older) thread items for pagination
     func loadMoreThreadItems(conversationID: UUID, limit: Int = 30) async {
+        // Don't load if already loading or no more items
+        guard !isLoadingMoreThreadItems, hasMoreThreadItems else { return }
+
         guard let oldestItem = currentConversationItems.min(by: { $0.createdAt < $1.createdAt }) else {
             return
         }
+
+        isLoadingMoreThreadItems = true
+        defer { isLoadingMoreThreadItems = false }
 
         do {
             let olderItems = try await supabase.getThreadItems(
@@ -221,7 +403,12 @@ final class ConversationManager: ObservableObject {
                 before: oldestItem.createdAt
             )
 
-            // Append older items
+            // If we got fewer items than requested, there are no more
+            if olderItems.count < limit {
+                hasMoreThreadItems = false
+            }
+
+            // Append older items (they go at the end since newest are first)
             currentConversationItems.append(contentsOf: olderItems)
 
             // Load associated doodles
@@ -231,6 +418,24 @@ final class ConversationManager: ObservableObject {
                 for doodle in newDoodles {
                     currentConversationDoodles[doodle.id] = doodle
                 }
+            }
+
+            // Load reactions for the new items
+            let newItemIDs = olderItems.map { $0.id }
+            if !newItemIDs.isEmpty {
+                let reactions = try await supabase.getReactions(threadItemIDs: newItemIDs)
+                let grouped = Dictionary(grouping: reactions) { $0.threadItemID }
+                for (itemID, itemReactions) in grouped {
+                    currentConversationReactions[itemID] = itemReactions
+                }
+            }
+
+            // Update cache
+            if var cached = threadCache[conversationID] {
+                cached.items = currentConversationItems
+                cached.doodles = currentConversationDoodles
+                cached.reactions = currentConversationReactions
+                threadCache[conversationID] = cached
             }
         } catch {
             print("Error loading more thread items: \(error)")
@@ -295,7 +500,12 @@ final class ConversationManager: ObservableObject {
     /// Get or create a direct conversation with a friend
     func getOrCreateConversation(with friendID: UUID, currentUserID: UUID) async -> UUID? {
         do {
-            return try await supabase.getOrCreateDirectConversation(userA: currentUserID, userB: friendID)
+            let conversationID = try await supabase.getOrCreateDirectConversation(userA: currentUserID, userB: friendID)
+
+            // Subscribe to realtime updates for this conversation
+            await RealtimeService.shared.addConversationSubscription(conversationID)
+
+            return conversationID
         } catch {
             print("Error getting/creating conversation: \(error)")
             return nil

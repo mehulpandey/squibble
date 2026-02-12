@@ -10,6 +10,7 @@ import SwiftUI
 struct ConversationListView: View {
     @EnvironmentObject var conversationManager: ConversationManager
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var navigationManager: NavigationManager
 
     let topPadding: CGFloat  // Padding to push content below floating header
 
@@ -29,8 +30,64 @@ struct ConversationListView: View {
             guard let userID = authManager.currentUserID else { return }
             await conversationManager.loadConversations(for: userID)
         }
+        .onAppear {
+            tryOpenPendingConversation()
+            // Refresh conversations when view appears (coming back from chat, switching tabs)
+            if let userID = authManager.currentUserID {
+                Task {
+                    await conversationManager.loadConversations(for: userID)
+                }
+            }
+        }
+        .onChange(of: navigationManager.pendingConversationID) { _ in
+            tryOpenPendingConversation()
+        }
+        .onChange(of: navigationManager.pendingConversationUserID) { _ in
+            tryOpenPendingConversationWithUser()
+        }
+        .onChange(of: conversationManager.conversations) { _ in
+            // Retry after conversations load
+            tryOpenPendingConversation()
+            tryOpenPendingConversationWithUser()
+        }
         .fullScreenCover(item: $selectedConversation) { conversation in
             ConversationThreadView(conversation: conversation)
+        }
+    }
+
+    // MARK: - Deep Link Handling
+
+    private func tryOpenPendingConversation() {
+        guard let pendingID = navigationManager.pendingConversationID else { return }
+        guard !conversationManager.conversations.isEmpty else { return }
+
+        if let conversation = conversationManager.conversations.first(where: { $0.id == pendingID }) {
+            selectedConversation = conversation
+            navigationManager.clearPendingConversation()
+        }
+    }
+
+    private func tryOpenPendingConversationWithUser() {
+        guard let pendingUserID = navigationManager.pendingConversationUserID else { return }
+        guard let currentUserID = authManager.currentUserID else { return }
+
+        // First check if we already have a conversation with this user
+        if let conversation = conversationManager.conversations.first(where: { $0.otherParticipant.id == pendingUserID }) {
+            selectedConversation = conversation
+            navigationManager.clearPendingConversationUser()
+            return
+        }
+
+        // Otherwise, create/find conversation and open it
+        Task {
+            if let conversationID = await conversationManager.getOrCreateConversation(with: pendingUserID, currentUserID: currentUserID) {
+                // Reload conversations to get the summary
+                await conversationManager.loadConversations(for: currentUserID)
+                if let conversation = conversationManager.conversations.first(where: { $0.id == conversationID }) {
+                    selectedConversation = conversation
+                }
+            }
+            navigationManager.clearPendingConversationUser()
         }
     }
 
@@ -74,10 +131,6 @@ struct ConversationListView: View {
             .padding(.horizontal, 20)
             .padding(.top, topPadding)
             .padding(.bottom, 100)
-        }
-        .refreshable {
-            guard let userID = authManager.currentUserID else { return }
-            await conversationManager.loadConversations(for: userID)
         }
     }
 
@@ -214,4 +267,5 @@ struct ConversationRow: View {
     ConversationListView(topPadding: 120)
         .environmentObject(ConversationManager.shared)
         .environmentObject(AuthManager())
+        .environmentObject(NavigationManager.shared)
 }

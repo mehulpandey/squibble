@@ -11,6 +11,7 @@ struct ConversationThreadView: View {
     let conversation: ConversationSummary
 
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) var scenePhase
     @EnvironmentObject var conversationManager: ConversationManager
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var userManager: UserManager
@@ -25,6 +26,12 @@ struct ConversationThreadView: View {
     @State private var selectedDoodle: Doodle?
     @State private var selectedDoodleItemID: UUID?
     @State private var hasScrolledToBottom = false
+    @State private var initialLoadComplete = false
+    @State private var previousItemCount = 0
+
+    // Scroll position tracking for pagination (iOS 17+)
+    // Setting this before loading older messages maintains position automatically
+    @State private var scrollAnchorItemID: UUID?
 
     // Time gap threshold for showing timestamps (1 hour)
     private let timestampGapThreshold: TimeInterval = 3600
@@ -75,20 +82,48 @@ struct ConversationThreadView: View {
         .navigationBarHidden(true)
         .task {
             await conversationManager.loadThread(conversationID: conversation.id)
+            // Set initial item count to prevent scroll on first load
+            previousItemCount = conversationManager.currentConversationItems.count
+            // Mark initial load as complete after a short delay to let scroll happen first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                initialLoadComplete = true
+            }
             if let userID = authManager.currentUserID {
                 await conversationManager.markAsRead(
                     conversationID: conversation.id,
                     userID: userID
                 )
             }
+            // Note: Realtime subscriptions are now managed globally by ConversationManager
+            // when loadConversations is called, so we don't need per-conversation subscribe/unsubscribe
         }
         .onDisappear {
             conversationManager.clearCurrentThread()
+            // Reset state for next time view appears
+            hasScrolledToBottom = false
+            initialLoadComplete = false
+            previousItemCount = 0
+            scrollAnchorItemID = nil
         }
         .sheet(isPresented: $showSettings) {
-            ChatSettingsView(conversation: conversation)
+            ChatSettingsView(conversation: conversation, onUnfriend: {
+                // Dismiss thread view after unfriending
+                dismiss()
+            })
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+        }
+        .onChange(of: scenePhase) { newPhase in
+            // Refresh when app becomes active (coming back from background or switching apps)
+            if newPhase == .active {
+                Task {
+                    // Store current count before refresh to prevent scroll jump
+                    let countBeforeRefresh = conversationManager.currentConversationItems.count
+                    await conversationManager.loadThread(conversationID: conversation.id)
+                    // Update previous count to the new count to prevent scroll on refresh
+                    previousItemCount = conversationManager.currentConversationItems.count
+                }
+            }
         }
     }
 
@@ -96,8 +131,9 @@ struct ConversationThreadView: View {
 
     private var floatingHeader: some View {
         ZStack(alignment: .top) {
-            // Semi-transparent background
+            // Semi-transparent background - allow touches to pass through to ScrollView
             AppTheme.backgroundTop.opacity(0.95)
+                .allowsHitTesting(false)
 
             // Content layer
             HStack {
@@ -152,6 +188,29 @@ struct ConversationThreadView: View {
                     // Top padding for floating header
                     Color.clear.frame(height: safeAreaTop + 60)
 
+                    // Load more indicator at top (oldest messages)
+                    // Only show after initial load is complete to prevent immediate triggering
+                    if conversationManager.hasMoreThreadItems && initialLoadComplete {
+                        HStack {
+                            Spacer()
+                            if conversationManager.isLoadingMoreThreadItems {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.textSecondary))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Button(action: {
+                                    loadMoreMessages(proxy: proxy)
+                                }) {
+                                    Text("Load earlier messages")
+                                        .font(.custom("Avenir-Medium", size: 14))
+                                        .foregroundColor(AppTheme.textSecondary)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .frame(height: 40)
+                    }
+
                     let items = conversationManager.currentConversationItems.reversed()
                     let itemsArray = Array(items)
 
@@ -187,8 +246,15 @@ struct ConversationThreadView: View {
                         .id("bottomAnchor")
                 }
                 .padding(.horizontal, 16)
+                .applyScrollTargetLayout()
             }
+            .applyScrollPosition($scrollAnchorItemID)
             .scrollDismissesKeyboard(.interactively)
+            .refreshable {
+                // Pull-to-refresh for newer messages
+                await conversationManager.loadThread(conversationID: conversation.id, forceRefresh: true)
+                previousItemCount = conversationManager.currentConversationItems.count
+            }
             // Fade content behind send bar
             // Send bar: 12px bottom padding + ~52px bar = ~64px from bottom
             // Midpoint of bar: ~38px from bottom
@@ -215,17 +281,25 @@ struct ConversationThreadView: View {
                 }
             }
             .onChange(of: conversationManager.currentConversationItems.count) { newCount in
-                // Scroll to bottom when new messages arrive
-                if hasScrolledToBottom && newCount > 0 {
-                    // Animate scroll for new messages after initial load
+                // Only scroll to bottom when NEW messages are added (realtime)
+                // Not when loading older messages (which increases count but adds to end)
+                // Not on refresh (which replaces items with same or different count)
+
+                // If count increased by a small amount (1-3) and we're past initial load,
+                // it's likely a new realtime message - scroll to bottom
+                let countDiff = newCount - previousItemCount
+                if hasScrolledToBottom && initialLoadComplete && countDiff > 0 && countDiff <= 3 {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo("bottomAnchor", anchor: .bottom)
                     }
                 }
+                previousItemCount = newCount
             }
             .onAppear {
-                // Scroll to bottom on appear - using multiple attempts to ensure it works
-                scrollToBottomWithRetry(proxy: proxy)
+                // Only scroll to bottom on first appear, not re-renders
+                if !hasScrolledToBottom {
+                    scrollToBottomWithRetry(proxy: proxy)
+                }
             }
         }
     }
@@ -312,6 +386,25 @@ struct ConversationThreadView: View {
         }
     }
 
+    /// Load more messages with iOS version-specific scroll position handling
+    private func loadMoreMessages(proxy: ScrollViewProxy) {
+        // Capture anchor for iOS 16 fallback (oldest item currently loaded)
+        let anchorItemID = conversationManager.currentConversationItems.last?.id
+
+        Task {
+            await conversationManager.loadMoreThreadItems(conversationID: conversation.id)
+            previousItemCount = conversationManager.currentConversationItems.count
+
+            // iOS 16 fallback: manually scroll back to anchor item
+            // iOS 17+ uses scrollPosition which handles this automatically
+            if #unavailable(iOS 17.0), let anchorID = anchorItemID {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    proxy.scrollTo(anchorID, anchor: .top)
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func avatarView(for user: User, size: CGFloat) -> some View {
         let color = Color(hex: user.colorHex.replacingOccurrences(of: "#", with: ""))
@@ -349,20 +442,27 @@ struct ConversationThreadView: View {
                     .onSubmit {
                         sendTextMessage()
                     }
+                    .frame(maxWidth: .infinity)
 
                 // Send button (always present to maintain consistent height)
                 Button(action: sendTextMessage) {
                     Image(systemName: isSendingMessage ? "hourglass" : "arrow.up.circle.fill")
                         .font(.system(size: 28))
                         .foregroundColor(AppTheme.primaryStart)
+                        .frame(width: 44, height: 44)  // Larger hit area
+                        .contentShape(Rectangle())
                 }
                 .disabled(isSendingMessage || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .opacity(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
                 .buttonStyle(ScaleButtonStyle())
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .frame(minHeight: 48)
+            .padding(.vertical, 6)
+            .frame(minHeight: 56)  // Taller for easier tapping
+            .contentShape(Capsule())  // Make entire area tappable for text field focus
+            .onTapGesture {
+                isTextFieldFocused = true
+            }
             .background(
                 VisualEffectBlur(blurStyle: .dark)
                     .clipShape(Capsule())
@@ -516,8 +616,9 @@ struct ThreadItemBubble: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             // Reaction overlay inside doodle, bottom-right with equal margins
+            // Blue background for my reactions on received doodles (matching grid view)
             if !reactions.isEmpty {
-                ReactionDisplay(reactions: reactions, isGroupChat: isGroupChat)
+                ReactionDisplay(reactions: reactions, isGroupChat: isGroupChat, useBlueBackground: !isFromMe)
                     .padding(8)
             }
         }
@@ -606,4 +707,29 @@ struct ThreadItemBubble: View {
         .environmentObject(AuthManager())
         .environmentObject(UserManager.shared)
         .environmentObject(NavigationManager.shared)
+}
+
+// MARK: - iOS Version-Specific Scroll Modifiers
+
+extension View {
+    /// Applies scrollTargetLayout on iOS 17+, no-op on iOS 16
+    @ViewBuilder
+    func applyScrollTargetLayout() -> some View {
+        if #available(iOS 17.0, *) {
+            self.scrollTargetLayout()
+        } else {
+            self
+        }
+    }
+
+    /// Applies scrollPosition on iOS 17+, no-op on iOS 16
+    /// iOS 16 fallback is handled in loadMoreMessages()
+    @ViewBuilder
+    func applyScrollPosition(_ id: Binding<UUID?>) -> some View {
+        if #available(iOS 17.0, *) {
+            self.scrollPosition(id: id, anchor: .top)
+        } else {
+            self
+        }
+    }
 }

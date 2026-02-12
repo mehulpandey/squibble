@@ -43,7 +43,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 2. Conversation List View
 
-### [ ] TC-2.1: Empty State
+### [x] TC-2.1: Empty State
 **Steps:**
 1. Use account with no conversations
 2. Navigate to History > Chats mode
@@ -52,7 +52,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Empty state displays with appropriate icon and message
 - Message indicates no conversations yet
 
-### [ ] TC-2.2: Conversation List Display
+### [x] TC-2.2: Conversation List Display
 **Steps:**
 1. Use account with existing conversations
 2. Navigate to History > Chats mode
@@ -65,7 +65,7 @@ Test cases for the conversation threading and reactions features added in `featu
   - Timestamp of last activity
   - Preview text (e.g., "sent you a doodle" or "You sent a doodle")
 
-### [ ] TC-2.3: Unread Indicator
+### [x] TC-2.3: Unread Indicator
 **Steps:**
 1. Have a conversation with unread doodles
 2. View conversation list
@@ -74,7 +74,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Unread conversations show visual indicator (blue dot or badge)
 - Indicator disappears after opening the conversation
 
-### [ ] TC-2.4: Pull to Refresh
+### [x] TC-2.4: Pull to Refresh
 **Steps:**
 1. In Chats mode, pull down on the list
 
@@ -83,7 +83,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Conversations reload from server
 - List updates with any new conversations
 
-### [ ] TC-2.5: Open Conversation
+### [x] TC-2.5: Open Conversation
 **Steps:**
 1. Tap on a conversation row
 
@@ -96,7 +96,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 3. Conversation Thread View
 
-### [ ] TC-3.1: Thread Header
+### [x] TC-3.1: Thread Header
 **Steps:**
 1. Open a conversation thread
 
@@ -107,7 +107,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Settings gear icon on right
 - Header blur extends to top of screen
 
-### [ ] TC-3.2: Back Navigation
+### [x] TC-3.2: Back Navigation
 **Steps:**
 1. In thread view, tap the back chevron
 
@@ -115,7 +115,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Thread dismisses with animation
 - Returns to conversation list
 
-### [ ] TC-3.3: Doodle Bubble Alignment
+### [x] TC-3.3: Doodle Bubble Alignment
 **Steps:**
 1. Open conversation with both sent and received doodles
 
@@ -124,7 +124,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Sent doodles (from you) aligned to RIGHT with gray accent
 - Each bubble shows the doodle image in white rounded container
 
-### [ ] TC-3.4: Timestamp Display
+### [x] TC-3.4: Timestamp Display
 **Steps:**
 1. Open conversation with doodles from different times
 
@@ -133,7 +133,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - First doodle always has timestamp
 - Subsequent doodles show timestamp only if significant time gap
 
-### [ ] TC-3.5: Scroll Behavior
+### [x] TC-3.5: Scroll Behavior
 **Steps:**
 1. Open conversation with many doodles
 
@@ -143,7 +143,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Can scroll to see all doodles
 - New doodles appear at bottom (chronological order)
 
-### [ ] TC-3.6: Empty Thread
+### [x] TC-3.6: Empty Thread
 **Steps:**
 1. Create new conversation with no doodles yet
 
@@ -155,7 +155,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 4. Send Doodle from Thread
 
-### [ ] TC-4.1: Send Doodle Button
+### [x] TC-4.1: Send Doodle Button
 **Steps:**
 1. Open conversation thread
 2. Tap "Send Doodle" button at bottom
@@ -165,7 +165,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Friend is pre-selected as recipient
 - Canvas ready for drawing
 
-### [ ] TC-4.2: Doodle Appears in Thread
+### [x] TC-4.2: Doodle Appears in Thread
 **Steps:**
 1. Send a doodle to a friend
 2. Open conversation with that friend
@@ -179,7 +179,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 5. Chat Settings
 
-### [ ] TC-5.1: Open Settings Sheet
+### [x] TC-5.1: Open Settings Sheet
 **Steps:**
 1. In thread view, tap settings gear icon
 
@@ -188,7 +188,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Shows friend's avatar and name
 - Shows available options
 
-### [ ] TC-5.2: Mute Toggle
+### [x] TC-5.2: Mute Toggle
 **Steps:**
 1. Open chat settings
 2. Toggle mute switch
@@ -198,7 +198,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Mute state persists (close and reopen to verify)
 - Muted chats don't send push notifications
 
-### [ ] TC-5.3: Unfriend Flow
+### [x] TC-5.3: Unfriend Flow
 **Steps:**
 1. Open chat settings
 2. Tap "Unfriend" option
@@ -213,7 +213,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 6. Doodle Tap Interaction (Thread)
 
-### [ ] TC-6.1: Tap Received Doodle in Thread
+### [x] TC-6.1: Tap Received Doodle in Thread
 **Steps:**
 1. In thread view, tap on a doodle you received
 
@@ -223,7 +223,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Reaction picker visible (6 emoji options)
 - Share and Reply buttons visible
 
-### [ ] TC-6.1b: Tap Sent Doodle in Thread
+### [x] TC-6.1b: Tap Sent Doodle in Thread
 **Steps:**
 1. In thread view, tap on a doodle you sent
 
@@ -234,7 +234,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Shows aggregated reactions badge if recipients have reacted
 - Share and Forward buttons visible
 
-### [ ] TC-6.2: Long Press Doodle
+### [x] TC-6.2: Long Press Doodle
 **Steps:**
 1. In thread view, long press (hold) on a doodle
 
@@ -247,7 +247,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 7. Reactions - Thread View
 
-### [ ] TC-7.1: Add Reaction
+### [x] TC-7.1: Add Reaction
 **Steps:**
 1. Open doodle overlay in thread
 2. Tap an emoji in reaction picker
@@ -258,7 +258,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Overlay auto-dismisses
 - Reaction appears on doodle bubble in thread
 
-### [ ] TC-7.2: Change Reaction
+### [x] TC-7.2: Change Reaction
 **Steps:**
 1. Open doodle that already has your reaction
 2. Tap a different emoji
@@ -267,7 +267,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Previous reaction replaced with new one
 - Only one reaction from you per doodle
 
-### [ ] TC-7.3: Remove Reaction
+### [x] TC-7.3: Remove Reaction
 **Steps:**
 1. Open doodle with your existing reaction
 2. Tap the same emoji again
@@ -276,7 +276,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Reaction removed (toggle behavior)
 - Doodle bubble no longer shows your reaction
 
-### [ ] TC-7.4: Reaction Display on Bubble
+### [x] TC-7.4: Reaction Display on Bubble
 **Steps:**
 1. Add reaction to a doodle
 2. View the doodle in thread
@@ -286,7 +286,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - White/light background circle behind emoji
 - Subtle shadow for visibility
 
-### [ ] TC-7.5: Multiple Reactions (Group Chat - Future)
+### [x] TC-7.5: Multiple Reactions (Group Chat - Future)
 **Note:** Groups not yet implemented, but reaction display supports counts
 
 **Expected for 1:1 chats:**
@@ -296,7 +296,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 8. Reactions - Grid View
 
-### [ ] TC-8.1: Tap Doodle in Grid
+### [x] TC-8.1: Tap Doodle in Grid
 **Steps:**
 1. In History > Grid mode
 2. Tap any doodle
@@ -305,7 +305,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Doodle overlay opens at MainTabView level (covers tab bar)
 - Shows sender info, reaction picker, enlarged doodle, action buttons
 
-### [ ] TC-8.2: Add Reaction from Grid
+### [x] TC-8.2: Add Reaction from Grid
 **Steps:**
 1. Open doodle overlay from grid
 2. Tap an emoji
@@ -316,7 +316,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Overlay dismisses
 - Grid item shows reaction badge (bottom-right corner)
 
-### [ ] TC-8.3: Reaction Badge on Grid Item
+### [x] TC-8.3: Reaction Badge on Grid Item
 **Steps:**
 1. Add reaction to a received doodle via grid
 2. View the doodle in grid
@@ -327,7 +327,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Shadow for visibility
 - See TC-14 for aggregated reactions on sent doodles
 
-### [ ] TC-8.4: Reaction Syncs Between Views
+### [x] TC-8.4: Reaction Syncs Between Views
 **Steps:**
 1. Add reaction in Grid view
 2. Open same conversation in Chats mode
@@ -337,7 +337,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Reaction visible on doodle in thread view
 - Same emoji shown
 
-### [ ] TC-8.5: Reaction from Thread Syncs to Grid
+### [x] TC-8.5: Reaction from Thread Syncs to Grid
 **Steps:**
 1. Add reaction in Thread view
 2. Switch to Grid mode
@@ -351,7 +351,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 9. Overlay Action Buttons
 
-### [ ] TC-9.1: Share Button
+### [x] TC-9.1: Share Button
 **Steps:**
 1. Open doodle overlay
 2. Tap "Share" button
@@ -361,7 +361,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Doodle image available to share
 - Can share to Messages, social apps, save to Photos, etc.
 
-### [ ] TC-9.2: Reply Button (Received Doodle)
+### [x] TC-9.2: Reply Button (Received Doodle)
 **Steps:**
 1. Open overlay for a doodle you received
 2. Tap "Reply" button
@@ -372,7 +372,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Sender pre-selected as recipient
 - Ready to draw reply
 
-### [ ] TC-9.3: Forward Button (Sent Doodle)
+### [x] TC-9.3: Forward Button (Sent Doodle)
 **Steps:**
 1. Open overlay for a doodle you sent
 2. Observe action buttons
@@ -386,7 +386,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 10. Header Consistency
 
-### [ ] TC-10.1: History Header Position
+### [x] TC-10.1: History Header Position
 **Steps:**
 1. View History tab
 2. Compare header position to Profile tab
@@ -395,7 +395,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - "History" text at same vertical position as "Profile" text
 - Consistent with all tabs
 
-### [ ] TC-10.2: Blur Effect
+### [x] TC-10.2: Blur Effect
 **Steps:**
 1. In History tab (either mode), scroll content
 
@@ -405,7 +405,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Blur extends to very top of screen (no gap)
 - Hard edge at bottom of header (no fade)
 
-### [ ] TC-10.3: Thread Header Blur
+### [x] TC-10.3: Thread Header Blur
 **Steps:**
 1. In thread view, scroll content
 
@@ -418,7 +418,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 11. Filter Interaction (Grid Mode)
 
-### [ ] TC-11.1: Filter Pills Style
+### [x] TC-11.1: Filter Pills Style
 **Steps:**
 1. In Grid mode, observe filter pills
 
@@ -427,7 +427,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Unselected filters have gray background
 - "All", "Sent", "Received" options available
 
-### [ ] TC-11.2: Person Filter Selected
+### [x] TC-11.2: Person Filter Selected
 **Steps:**
 1. Tap person filter icon
 2. Select a friend
@@ -441,7 +441,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 12. Edge Cases
 
-### [ ] TC-12.1: Network Error - Load Conversations
+### [x] TC-12.1: Network Error - Load Conversations
 **Steps:**
 1. Disable network
 2. Try to load conversation list
@@ -451,7 +451,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Error message or cached data shown
 - No crash
 
-### [ ] TC-12.2: Network Error - Send Reaction
+### [x] TC-12.2: Network Error - Send Reaction
 **Steps:**
 1. Add reaction
 2. Immediately disable network
@@ -461,7 +461,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Background retry or revert on failure
 - No crash
 
-### [ ] TC-12.3: Large Thread
+### [x] TC-12.3: Large Thread
 **Steps:**
 1. Open conversation with 50+ doodles
 
@@ -470,7 +470,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Smooth scrolling
 - Memory usage reasonable
 
-### [ ] TC-12.4: Rapid Tab Switching
+### [x] TC-12.4: Rapid Tab Switching
 **Steps:**
 1. Quickly switch between Grid/Chats modes multiple times
 
@@ -483,7 +483,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 13. Data Persistence
 
-### [ ] TC-13.1: Conversations Persist
+### [x] TC-13.1: Conversations Persist
 **Steps:**
 1. View conversations
 2. Force quit app
@@ -494,7 +494,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Data loads from server
 - No data loss
 
-### [ ] TC-13.2: Reactions Persist
+### [x] TC-13.2: Reactions Persist
 **Steps:**
 1. Add reaction to doodle
 2. Force quit and reopen app
@@ -508,7 +508,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 14. Aggregated Reactions (Sent Doodles)
 
-### [ ] TC-14.1: Single Reaction Badge
+### [x] TC-14.1: Single Reaction Badge
 **Steps:**
 1. Send a doodle to one friend
 2. Have friend react with an emoji
@@ -540,7 +540,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Shows same format as grid badge (top emojis + count)
 - Badge is tappable
 
-### [ ] TC-14.4: Reactors List Popup
+### [x] TC-14.4: Reactors List Popup
 **Steps:**
 1. Open detail overlay for sent doodle with reactions
 2. Tap the aggregated reactions badge
@@ -552,7 +552,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - "Done" button dismisses sheet
 - Glassy background style (matches other sheets)
 
-### [ ] TC-14.5: Color Differentiation - Sent vs Received
+### [x] TC-14.5: Color Differentiation - Sent vs Received
 **Steps:**
 1. View Grid with both sent and received doodles that have reactions
 2. Compare reaction badge backgrounds
@@ -562,7 +562,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Received doodles (your reaction): Blue-tinted badge background
 - Clear visual distinction between the two
 
-### [ ] TC-14.6: No Reaction Picker for Sent Doodles
+### [x] TC-14.6: No Reaction Picker for Sent Doodles
 **Steps:**
 1. Open detail overlay for a doodle you sent
 
@@ -574,7 +574,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 15. Forward Doodle
 
-### [ ] TC-15.1: Forward Button Display
+### [x] TC-15.1: Forward Button Display
 **Steps:**
 1. Open detail overlay for a doodle you sent
 
@@ -582,7 +582,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - "Forward" button visible (instead of Reply)
 - Button has forward arrow icon
 
-### [ ] TC-15.2: Forward Sheet Opens
+### [x] TC-15.2: Forward Sheet Opens
 **Steps:**
 1. Open detail overlay for sent doodle
 2. Tap "Forward" button
@@ -593,7 +593,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - "Cancel" button in header
 - No send button until friends selected
 
-### [ ] TC-15.3: Select Friends to Forward
+### [x] TC-15.3: Select Friends to Forward
 **Steps:**
 1. Open forward sheet
 2. Tap multiple friends
@@ -604,7 +604,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Send button appears when 1+ friends selected
 - Button shows count (e.g., "Forward to 2 friends")
 
-### [ ] TC-15.4: Forward Success
+### [x] TC-15.4: Forward Success
 **Steps:**
 1. Select friends and tap send
 2. Wait for completion
@@ -615,7 +615,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Sheet auto-dismisses after ~1 second
 - Doodle now visible in those friends' conversations
 
-### [ ] TC-15.5: Forward Empty State
+### [x] TC-15.5: Forward Empty State
 **Steps:**
 1. Remove all friends
 2. Try to forward a doodle
@@ -628,7 +628,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 16. Recipients List (Sent Doodles)
 
-### [ ] TC-16.1: Single Recipient Display
+### [x] TC-16.1: Single Recipient Display
 **Steps:**
 1. Send doodle to one friend
 2. Open doodle in detail overlay
@@ -637,7 +637,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Header shows "Sent to [Friend Name]"
 - Name is not tappable (no popup needed)
 
-### [ ] TC-16.2: Multiple Recipients Display
+### [x] TC-16.2: Multiple Recipients Display
 **Steps:**
 1. Send doodle to 3 friends
 2. Open doodle in detail overlay
@@ -646,7 +646,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Header shows "Sent to 3 people"
 - "3 people" is tappable (orange color)
 
-### [ ] TC-16.3: Recipients List Popup
+### [x] TC-16.3: Recipients List Popup
 **Steps:**
 1. Open doodle sent to multiple people
 2. Tap "X people" link
@@ -661,7 +661,7 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ## 17. Sheet Styling Consistency
 
-### [ ] TC-17.1: Glassy Background
+### [x] TC-17.1: Glassy Background
 **Steps:**
 1. Open various sheets (Send, Friends, Chat Settings, Reactions, Recipients)
 
@@ -670,7 +670,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - No opaque dark backgrounds
 - System drag indicator visible at top
 
-### [ ] TC-17.2: Navigation Bar Style
+### [x] TC-17.2: Navigation Bar Style
 **Steps:**
 1. Open sheets with navigation bars
 
@@ -679,7 +679,7 @@ Test cases for the conversation threading and reactions features added in `featu
 - Orange "Done" button in top-right
 - Consistent across all sheets
 
-### [ ] TC-17.3: List Row Backgrounds
+### [x] TC-17.3: List Row Backgrounds
 **Steps:**
 1. Open sheets with lists (Friends, Recipients, Reactions)
 
@@ -689,9 +689,94 @@ Test cases for the conversation threading and reactions features added in `featu
 
 ---
 
+---
+
+## 18. Scalability Optimizations
+
+### [x] TC-18.1: Fast App Launch
+**Steps:**
+1. Force quit app
+2. Open app and time until home screen appears
+
+**Expected:**
+- Home screen visible within 1-2 seconds
+- User data loads first, friends/doodles populate after
+
+### [x] TC-18.2: Background Data Load
+**Steps:**
+1. Launch app fresh
+2. Immediately navigate to History tab
+
+**Expected:**
+- History tab shows loading state briefly
+- Grid populates as doodles load in background
+- No blocking or freezing
+
+### [x] TC-18.3: Conversation List Performance
+**Steps:**
+1. Navigate to History > Chats mode
+2. Observe load time
+
+**Expected:**
+- Conversations appear quickly (< 1 second)
+- Latest message and unread counts show immediately
+- No visible staggered loading
+
+### [x] TC-18.4: Widget Cache (Check Xcode Console)
+**Steps:**
+1. Receive a doodle
+2. Open app, go to History to trigger widget update
+3. Force quit and reopen app
+4. Check console for "Widget: Doodle X already cached, skipping download"
+
+**Expected:**
+- On second launch, widget uses cached image
+- No redundant download
+
+### [ ] TC-18.5: Realtime Doodle Append - FAILED
+**Steps:**
+1. Keep app open on History tab
+2. Have friend send you a doodle
+3. Observe grid update
+
+**Expected:**
+- New doodle appears at top of grid
+- Existing doodles don't reload/flicker
+- Smooth insertion
+
+### [x] TC-18.6: Grid/Chats Switch Debounce
+**Steps:**
+1. Rapidly tap Grid/Chats toggle 5+ times
+
+**Expected:**
+- No lag or UI freeze
+- View switches cleanly
+- No duplicate data loads (check console)
+
+### [ ] TC-18.7: Pagination - Load More
+**Steps:**
+1. Have 50+ doodles in account
+2. Scroll to bottom of doodle grid
+
+**Expected:**
+- Loading indicator appears at bottom
+- More doodles load and append
+- Can continue scrolling to load more
+
+### [x] TC-18.8: Pull to Refresh
+**Steps:**
+1. On History grid, pull down to refresh
+
+**Expected:**
+- Refresh indicator appears
+- All data reloads fresh
+- Pagination resets (starts from beginning)
+
+---
+
 ## Test Environment Notes
 
-- [ ] Test on iPhone with notch (e.g., iPhone 14/15/16) for safe area handling
+- [x] Test on iPhone with notch (e.g., iPhone 14/15/16) for safe area handling
 - [ ] Test on older devices (iPhone SE) for different screen sizes
-- [ ] Test with VoiceOver enabled for accessibility
-- [ ] Test in both light conditions (outdoor/indoor) for UI visibility
+- [x] Test with VoiceOver enabled for accessibility
+- [x] Test in both light conditions (outdoor/indoor) for UI visibility

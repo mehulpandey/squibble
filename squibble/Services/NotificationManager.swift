@@ -88,24 +88,32 @@ final class NotificationManager: ObservableObject {
 
         switch type {
         case "new_doodle":
+            // Open the conversation with the doodle sender
+            if let senderIDString = userInfo["sender_id"] as? String,
+               let senderID = UUID(uuidString: senderIDString) {
+                return .openConversationWithUser(senderID)
+            }
+            return .openHistory
+
+        case "new_text_message":
+            // Open the specific conversation
+            if let conversationIDString = userInfo["conversation_id"] as? String,
+               let conversationID = UUID(uuidString: conversationIDString) {
+                return .openConversation(conversationID)
+            }
+            return .openHistory
+
+        case "new_reaction":
+            // Open the doodle detail overlay
             if let doodleIDString = userInfo["doodle_id"] as? String,
                let doodleID = UUID(uuidString: doodleIDString) {
                 return .openDoodle(doodleID)
             }
             return .openHistory
 
-        case "friend_request":
+        case "friend_request", "friend_accepted":
+            // Show Add Friends view (contains friend requests section)
             return .openAddFriends
-
-        case "friend_accepted":
-            return .openHome
-
-        case "new_text_message", "new_reaction":
-            if let conversationIDString = userInfo["conversation_id"] as? String,
-               let conversationID = UUID(uuidString: conversationIDString) {
-                return .openConversation(conversationID)
-            }
-            return .openHistory
 
         default:
             return nil
@@ -121,4 +129,5 @@ enum NotificationAction {
     case openAddFriends
     case openHome
     case openConversation(UUID)
+    case openConversationWithUser(UUID)  // Find/create conversation with sender
 }
