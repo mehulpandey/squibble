@@ -693,10 +693,13 @@
 - **Expected notification payload format:**
   ```json
   {
-    "type": "new_doodle" | "friend_request" | "friend_accepted",
+    "type": "new_doodle" | "friend_request" | "friend_accepted" | "new_text_message" | "new_reaction",
     "doodle_id": "uuid",
     "sender_id": "uuid",
-    "sender_name": "Name"
+    "sender_name": "Name",
+    "conversation_id": "uuid",
+    "text_preview": "message preview...",
+    "emoji": "👍"
   }
   ```
 - **Permissions denied:** App continues to work normally, just without push notifications
@@ -704,7 +707,15 @@
 ### Action Items for You
 - [ ] **DEFERRED: Set up APNs** in Apple Developer portal (requires paid account)
 - [ ] **DEFERRED: Create APNs Auth Key** (.p8 file) and configure in Supabase
-- [ ] **DEFERRED: Create Supabase Edge Functions** to send notifications when doodles/friend requests are created
+- [x] **Create Supabase Edge Function** - `send-push-notification` handles doodles, friend requests, text messages, and reactions
+- [ ] **Set up database webhooks in Supabase Dashboard** for push notifications:
+  1. Go to Supabase Dashboard → Database → Webhooks
+  2. Create webhooks for the following tables, all pointing to the `send-push-notification` Edge Function:
+     - `doodle_recipients` → INSERT (for new doodles)
+     - `friendships` → INSERT (for friend requests) and UPDATE (for friend accepts)
+     - `thread_items` → INSERT (for text messages - only triggers for type='text')
+     - `reactions` → INSERT (for reactions)
+  3. Make sure to select "Enable payload" to include record data
 - [ ] **Test push notifications** on physical device (required - simulator doesn't support push)
 
 ---

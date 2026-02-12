@@ -51,6 +51,18 @@ struct ReactionPicker: View {
 struct ReactionDisplay: View {
     let reactions: [Reaction]
     let isGroupChat: Bool
+    var useBlueBackground: Bool = false  // True for my reaction on received doodles
+
+    /// Background color: blue tint for my reactions on received doodles, white/material for others
+    private var badgeBackground: some View {
+        Group {
+            if useBlueBackground {
+                Circle().fill(Color(hex: "0084FF").opacity(0.25))
+            } else {
+                Circle().fill(.ultraThinMaterial).opacity(0.8)
+            }
+        }
+    }
 
     var body: some View {
         if reactions.isEmpty {
@@ -70,11 +82,7 @@ struct ReactionDisplay: View {
                 Text(emoji)
                     .font(.system(size: 16))
                     .frame(width: 28, height: 28)
-                    .background(
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.8)
-                    )
+                    .background(badgeBackground)
                     .overlay(
                         Circle()
                             .stroke(Color.white.opacity(0.4), lineWidth: 1)
@@ -109,11 +117,7 @@ struct ReactionDisplay: View {
                     }
                 }
                 .frame(width: 28, height: 28)
-                .background(
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.8)
-                )
+                .background(badgeBackground)
                 .overlay(
                     Circle()
                         .stroke(Color.white.opacity(0.4), lineWidth: 1)

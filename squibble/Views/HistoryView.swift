@@ -32,6 +32,7 @@ struct HistoryView: View {
     @State private var selectedPersonID: UUID?
     @State private var hasRetriedPendingDoodle = false
     @State private var doodleReactionSummaries: [UUID: ReactionSummary] = [:]  // Aggregated reactions cache
+    @State private var lastReactionLoadTime: Date?  // For debouncing reaction loads
 
     private var safeAreaTop: CGFloat {
         UIApplication.shared.connectedScenes
@@ -85,11 +86,28 @@ struct HistoryView: View {
 
             // Try to open pending doodle from widget/deep link
             tryOpenPendingDoodle()
+
+            // Switch to Chats mode if there's a pending conversation
+            if navigationManager.pendingConversationID != nil || navigationManager.pendingConversationUserID != nil {
+                viewMode = .chats
+            }
         }
         .onChange(of: navigationManager.pendingDoodleID) { _ in
             // Handle deep link when view is already visible
             hasRetriedPendingDoodle = false
             tryOpenPendingDoodle()
+        }
+        .onChange(of: navigationManager.pendingConversationID) { newID in
+            // Switch to Chats mode for conversation deep links
+            if newID != nil {
+                viewMode = .chats
+            }
+        }
+        .onChange(of: navigationManager.pendingConversationUserID) { newID in
+            // Switch to Chats mode for conversation deep links
+            if newID != nil {
+                viewMode = .chats
+            }
         }
         .onChange(of: doodleManager.allDoodles) { _ in
             // Retry opening pending doodle after doodles load
@@ -288,6 +306,26 @@ struct HistoryView: View {
                     if adPositions.contains(itemsAfterThisRow) {
                         InlineBannerAdContainer()
                     }
+
+                    // Load more trigger when near the end
+                    if rowIndex == rows.count - 1 && doodleManager.hasMore {
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear {
+                                Task { await loadMoreDoodles() }
+                            }
+                    }
+                }
+
+                // Loading indicator for pagination
+                if doodleManager.isLoadingMore {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.primaryStart))
+                        Spacer()
+                    }
+                    .padding(.vertical, 16)
                 }
             }
             .padding(.horizontal, 16)
@@ -297,6 +335,11 @@ struct HistoryView: View {
         .refreshable {
             await refreshDoodles()
         }
+    }
+
+    private func loadMoreDoodles() async {
+        guard let userID = authManager.currentUserID else { return }
+        await doodleManager.loadMoreDoodles(for: userID)
     }
 
     // MARK: - Empty State
@@ -415,16 +458,28 @@ struct HistoryView: View {
     private func refreshDoodles() async {
         guard let userID = authManager.currentUserID else { return }
         await doodleManager.refreshDoodles(for: userID)
-        await loadReactions()
+        // Force reload on pull-to-refresh
+        await loadReactions(forceReload: true)
     }
 
-    private func loadReactions() async {
+    /// Load reactions with debouncing - skips if loaded within 30 seconds unless forceReload is true
+    private func loadReactions(forceReload: Bool = false) async {
+        // Debounce: skip if loaded within last 30 seconds (unless forced)
+        if !forceReload, let lastLoad = lastReactionLoadTime {
+            let elapsed = Date().timeIntervalSince(lastLoad)
+            if elapsed < 30 {
+                print("HistoryView: Skipping reaction load (debounce, \(Int(elapsed))s since last load)")
+                return
+            }
+        }
+
         let doodleIDs = doodleManager.allDoodles.map { $0.id }
         guard !doodleIDs.isEmpty else { return }
 
         // Only update if successful - preserve cache on error
         if let summaries = await conversationManager.loadAggregatedReactionsForDoodles(doodleIDs: doodleIDs) {
             doodleReactionSummaries = summaries
+            lastReactionLoadTime = Date()
         }
     }
 

@@ -112,6 +112,17 @@ struct HomeView: View {
             if !favoriteColorsManager.favoriteColors.isEmpty {
                 drawingState.selectedColor = favoriteColorsManager.favoriteColors[0]
             }
+            // Check for pending navigation from notification
+            if navigationManager.showAddFriends {
+                showAddFriends = true
+                navigationManager.showAddFriends = false
+            }
+        }
+        .onChange(of: navigationManager.showAddFriends) { shouldShow in
+            if shouldShow {
+                showAddFriends = true
+                navigationManager.showAddFriends = false
+            }
         }
     }
 

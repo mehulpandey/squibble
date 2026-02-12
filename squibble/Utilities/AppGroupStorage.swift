@@ -21,6 +21,7 @@ struct AppGroupStorage {
 
     private enum Keys {
         static let latestDoodleImagePath = "latestDoodleImagePath"
+        static let latestDoodleImageURL = "latestDoodleImageURL"  // For cache validation
         static let latestDoodleSenderName = "latestDoodleSenderName"
         static let latestDoodleSenderInitials = "latestDoodleSenderInitials"
         static let latestDoodleSenderColor = "latestDoodleSenderColor"
@@ -33,6 +34,7 @@ struct AppGroupStorage {
 
     static func saveLatestDoodle(
         imageData: Data,
+        imageURL: String,
         doodleID: UUID,
         senderName: String,
         senderInitials: String,
@@ -47,8 +49,9 @@ struct AppGroupStorage {
         let imagePath = containerURL.appendingPathComponent("latest_doodle.png")
         try? imageData.write(to: imagePath)
 
-        // Save metadata
+        // Save metadata (including URL for cache validation)
         userDefaults?.set(imagePath.path, forKey: Keys.latestDoodleImagePath)
+        userDefaults?.set(imageURL, forKey: Keys.latestDoodleImageURL)
         userDefaults?.set(senderName, forKey: Keys.latestDoodleSenderName)
         userDefaults?.set(senderInitials, forKey: Keys.latestDoodleSenderInitials)
         userDefaults?.set(senderColor, forKey: Keys.latestDoodleSenderColor)
@@ -91,10 +94,34 @@ struct AppGroupStorage {
         try? FileManager.default.removeItem(at: imagePath)
 
         userDefaults?.removeObject(forKey: Keys.latestDoodleImagePath)
+        userDefaults?.removeObject(forKey: Keys.latestDoodleImageURL)
         userDefaults?.removeObject(forKey: Keys.latestDoodleSenderName)
         userDefaults?.removeObject(forKey: Keys.latestDoodleSenderInitials)
         userDefaults?.removeObject(forKey: Keys.latestDoodleSenderColor)
         userDefaults?.removeObject(forKey: Keys.latestDoodleID)
         userDefaults?.removeObject(forKey: Keys.latestDoodleDate)
+    }
+
+    // MARK: - Cache Validation
+
+    /// Returns the currently cached doodle ID (if any)
+    static func getCachedDoodleID() -> UUID? {
+        guard let idString = userDefaults?.string(forKey: Keys.latestDoodleID) else { return nil }
+        return UUID(uuidString: idString)
+    }
+
+    /// Returns the currently cached image URL (for validation)
+    static func getCachedImageURL() -> String? {
+        return userDefaults?.string(forKey: Keys.latestDoodleImageURL)
+    }
+
+    /// Checks if the widget already has this doodle cached with the same image URL
+    static func hasValidCache(doodleID: UUID, imageURL: String) -> Bool {
+        guard getCachedDoodleID() == doodleID,
+              getCachedImageURL() == imageURL,
+              getLatestDoodleImage() != nil else {
+            return false
+        }
+        return true
     }
 }

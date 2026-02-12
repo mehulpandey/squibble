@@ -69,13 +69,8 @@ struct RootView: View {
     private func loadUserDataAndCheckOnboarding() async {
         guard let userID = authManager.currentUserID else { return }
 
-        // Load user data in parallel for faster startup
-        async let userTask: () = userManager.loadUser(id: userID)
-        async let friendsTask: () = friendManager.loadFriends(for: userID)
-        async let doodlesTask: () = doodleManager.loadDoodles(for: userID)
-
-        // Wait for all to complete
-        _ = await (userTask, friendsTask, doodlesTask)
+        // PROGRESSIVE STARTUP: Only block on user data (needed for onboarding check)
+        await userManager.loadUser(id: userID)
 
         // Check if user needs onboarding BEFORE showing authenticated view
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -85,8 +80,16 @@ struct RootView: View {
             isLoadingUserData = false
         }
 
+        // Load friends and doodles in background (non-blocking)
+        // UI will show immediately and update as data loads
+        Task.detached(priority: .userInitiated) {
+            // Load friends and doodles in parallel
+            async let friendsTask: () = self.friendManager.loadFriends(for: userID)
+            async let doodlesTask: () = self.doodleManager.loadDoodles(for: userID)
+            _ = await (friendsTask, doodlesTask)
+        }
+
         // Delay non-critical background work to let UI settle first
-        // This prevents main thread contention during initial render (fixes first-launch lag)
         Task.detached(priority: .utility) {
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
@@ -106,7 +109,7 @@ struct RootView: View {
 
         // Handle new doodle received
         realtime.onNewDoodleReceived = { [weak doodleManager, weak friendManager] recipient in
-            print("Realtime callback: New doodle received for recipient \(recipient.recipientID)")
+            print("Realtime callback: New doodle received - doodleID: \(recipient.doodleID)")
             Task { @MainActor in
                 guard let doodleManager = doodleManager,
                       let friendManager = friendManager else {
@@ -114,15 +117,16 @@ struct RootView: View {
                     return
                 }
 
-                print("Realtime callback: Reloading doodles...")
-                // Reload doodles to get the new one
-                await doodleManager.loadDoodles(for: userID)
-                print("Realtime callback: Doodles reloaded, receivedDoodles count = \(doodleManager.receivedDoodles.count)")
+                // OPTIMIZATION: Append just the new doodle instead of reloading all
+                let didAppend = await doodleManager.appendReceivedDoodle(doodleID: recipient.doodleID)
+                print("Realtime callback: Append result = \(didAppend), receivedDoodles count = \(doodleManager.receivedDoodles.count)")
 
                 // Update widget with latest doodle
-                print("Realtime callback: Updating widget...")
-                await doodleManager.updateWidgetWithLatestDoodle(friends: friendManager.friends)
-                print("Realtime callback: Widget update complete")
+                if didAppend {
+                    print("Realtime callback: Updating widget...")
+                    await doodleManager.updateWidgetWithLatestDoodle(friends: friendManager.friends)
+                    print("Realtime callback: Widget update complete")
+                }
             }
         }
 

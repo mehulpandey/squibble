@@ -1,3 +1,15 @@
+# MOST IMPORTANT GUIDELINES
+- DO NOT sacrifice technical architecture just for the sake of a quick and easy fix. Take the extra time to design the most optimal implementation and infrastructure you can, even if it adds some extra steps/complexity. Design your system to maximize the following:
+    - Performance & latency -> use caching strategies, CDNs, efficient push/polling mechanisms, etc
+    - Scalability -> use stateless services where possible, use managed databases that can scale, etc
+    - Reliability & availability -> redundancy, error handling, retry logic, graceful degradation
+    - Simplicity -> avoid over-engineering for simple debugging & maintenance
+    - Security -> row-level security, input validation, encrypted data in transit & at rest, etc
+    - Observability -> logging, error tracking, basic analytics (need to be able to know why something breaks at 2am)
+    - Cost efficiency -> use managed services, efficient querying strategies to minimize egress, etc
+- When fixing issues, try to address the root cause first instead of adding patch-work workaround solutions. If a workaround is absolutely necessary, ask me first for my confirmation. I don't want to build up a lot of technical debt
+- When implementing new features commonly seen in other apps (e.g. chat interface, video playback, etc), research how those apps implement them and follow their model - don't try to reinvent the wheel
+
 # Squibble iOS App
 
 A widget-based iOS app where users draw and send doodles to friends. Received doodles appear on a home screen widget.
@@ -112,15 +124,3 @@ Check `docs/tasks.md` for current progress. Tasks are organized into checkpoints
 - Branch naming: `feature/<name>` for new features, `fix/<name>` for bug fixes
 - Test thoroughly before merging to `main`
 - Tag releases with semantic versioning (v1.0.1, v1.1.0, etc.)
-
-## General Instructions
-
-- Follow the tasks list in tasks.md. We will implement this checkpoint by checkpoint. When an item has been completed, mark it complete with a [x].
-- Use the frontend-design skill whenever doing any UX/UI work.
-- Every step of the way, give me a high level explanation of what changes you made.
-- Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
-- When a spec changes, update it in the logical place in "squibble-app-spec.md"
-- After a checkpoint is completed, add any important info to tasks.md in a new section at the end of that checkpoint, such as if any action is needed from my end (setting up accounts, API keys, etc), if anything is partially completed (with placeholder values, etc), or anything else that needs my attention. If there is nothing worth noting, mention there are no notes. Name this section "Notes for Mehul".
-- Any important information (approvals, decisions, action items for me) should be documented directly in the specs or in tasks.md's "Notes for Mehul" sections. No extra intermediate documents.
-- DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY
-- MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY

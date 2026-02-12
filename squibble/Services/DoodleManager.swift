@@ -8,33 +8,53 @@
 import Foundation
 import Combine
 import WidgetKit
+import UIKit
 
 @MainActor
 final class DoodleManager: ObservableObject {
     @Published var sentDoodles: [Doodle] = []
     @Published var receivedDoodles: [Doodle] = []
     @Published var isLoading = false
+    @Published var isLoadingMore = false
+
+    // Pagination state
+    @Published private(set) var hasMoreSent = true
+    @Published private(set) var hasMoreReceived = true
+    private let pageSize = 50
 
     private let supabase = SupabaseService.shared
+    private var lastWidgetUpdateTime: Date?  // For debouncing widget updates
+
+    var hasMore: Bool { hasMoreSent || hasMoreReceived }
 
     func loadDoodles(for userID: UUID, showLoading: Bool = true) async {
         if showLoading {
             isLoading = true
         }
 
-        // Fetch sent and received doodles in parallel
+        // Reset pagination state
+        hasMoreSent = true
+        hasMoreReceived = true
+
+        // Fetch first page of sent and received doodles in parallel
         async let sentTask: [Doodle]? = {
-            do { return try await supabase.getDoodlesSent(by: userID) }
+            do { return try await supabase.getDoodlesSent(by: userID, limit: self.pageSize, offset: 0) }
             catch { print("Error loading sent doodles: \(error)"); return nil }
         }()
         async let receivedTask: [Doodle]? = {
-            do { return try await supabase.getDoodlesReceived(by: userID) }
+            do { return try await supabase.getDoodlesReceived(by: userID, limit: self.pageSize, offset: 0) }
             catch { print("Error loading received doodles: \(error)"); return nil }
         }()
 
         let (newSent, newReceived) = await (sentTask, receivedTask)
-        if let newSent { sentDoodles = newSent }
-        if let newReceived { receivedDoodles = newReceived }
+        if let newSent {
+            sentDoodles = newSent
+            hasMoreSent = newSent.count >= pageSize
+        }
+        if let newReceived {
+            receivedDoodles = newReceived
+            hasMoreReceived = newReceived.count >= pageSize
+        }
 
         if showLoading {
             isLoading = false
@@ -44,6 +64,45 @@ final class DoodleManager: ObservableObject {
     /// Refresh doodles without showing loading indicator (for pull-to-refresh)
     func refreshDoodles(for userID: UUID) async {
         await loadDoodles(for: userID, showLoading: false)
+    }
+
+    /// Load more doodles (pagination)
+    func loadMoreDoodles(for userID: UUID) async {
+        guard !isLoadingMore && hasMore else { return }
+
+        isLoadingMore = true
+
+        // Load more sent doodles if available
+        if hasMoreSent {
+            do {
+                let moreSent = try await supabase.getDoodlesSent(
+                    by: userID,
+                    limit: pageSize,
+                    offset: sentDoodles.count
+                )
+                sentDoodles.append(contentsOf: moreSent)
+                hasMoreSent = moreSent.count >= pageSize
+            } catch {
+                print("Error loading more sent doodles: \(error)")
+            }
+        }
+
+        // Load more received doodles if available
+        if hasMoreReceived {
+            do {
+                let moreReceived = try await supabase.getDoodlesReceived(
+                    by: userID,
+                    limit: pageSize,
+                    offset: receivedDoodles.count
+                )
+                receivedDoodles.append(contentsOf: moreReceived)
+                hasMoreReceived = moreReceived.count >= pageSize
+            } catch {
+                print("Error loading more received doodles: \(error)")
+            }
+        }
+
+        isLoadingMore = false
     }
 
     func sendDoodle(senderID: UUID, imageData: Data, recipientIDs: [UUID]) async throws {
@@ -141,14 +200,53 @@ final class DoodleManager: ObservableObject {
         (sentDoodles + receivedDoodles).sorted { $0.createdAt > $1.createdAt }
     }
 
+    // MARK: - Realtime Append (Optimization)
+
+    /// Appends a single received doodle without reloading all doodles
+    /// Returns true if the doodle was appended, false if it already exists
+    @discardableResult
+    func appendReceivedDoodle(doodleID: UUID) async -> Bool {
+        // Check if we already have this doodle
+        guard !receivedDoodles.contains(where: { $0.id == doodleID }) else {
+            print("DoodleManager: Doodle \(doodleID) already in receivedDoodles, skipping")
+            return false
+        }
+
+        // Fetch just this one doodle
+        do {
+            let doodles = try await supabase.getDoodles(ids: [doodleID])
+            guard let doodle = doodles.first else {
+                print("DoodleManager: Could not fetch doodle \(doodleID)")
+                return false
+            }
+
+            // Insert at the beginning (most recent)
+            receivedDoodles.insert(doodle, at: 0)
+            print("DoodleManager: Appended new doodle \(doodleID), total received: \(receivedDoodles.count)")
+            return true
+        } catch {
+            print("DoodleManager: Error fetching doodle \(doodleID): \(error)")
+            return false
+        }
+    }
+
     // MARK: - Widget Updates
 
     /// Updates the widget with the most recent received doodle
     /// Pass friends list to look up sender info, or nil to clear widget if no doodles
+    /// Debounced to max once per 5 seconds to prevent rapid successive calls
     func updateWidgetWithLatestDoodle(friends: [User]) async {
+        // Debounce: skip if updated within last 5 seconds
+        if let lastUpdate = lastWidgetUpdateTime {
+            let elapsed = Date().timeIntervalSince(lastUpdate)
+            if elapsed < 5 {
+                print("Widget: Skipping update (debounce, \(Int(elapsed))s since last update)")
+                return
+            }
+        }
+        lastWidgetUpdateTime = Date()
+
         print("Widget: updateWidgetWithLatestDoodle called")
-        print("Widget: receivedDoodles count = \(receivedDoodles.count)")
-        print("Widget: friends count = \(friends.count)")
 
         guard let latestDoodle = receivedDoodles.first else {
             // No received doodles - clear the widget
@@ -158,15 +256,19 @@ final class DoodleManager: ObservableObject {
             return
         }
 
-        print("Widget: Latest doodle ID = \(latestDoodle.id)")
-        print("Widget: Latest doodle senderID = \(latestDoodle.senderID)")
-        for friend in friends {
-            print("Widget: Friend - id=\(friend.id), name=\(friend.displayName), initials=\(friend.initials)")
+        // OPTIMIZATION: Check if widget already has this exact doodle cached
+        if AppGroupStorage.hasValidCache(doodleID: latestDoodle.id, imageURL: latestDoodle.imageURL) {
+            print("Widget: Doodle \(latestDoodle.id) already cached, skipping download")
+            // Still refresh timeline in case metadata needs update, but no network call
+            WidgetCenter.shared.reloadTimelines(ofKind: AppGroupStorage.widgetKind)
+            return
         }
 
-        // Download the doodle image first (can do in parallel with sender lookup if needed)
-        guard let imageData = await downloadDoodleImage(from: latestDoodle.imageURL) else {
-            print("Widget: Failed to download image")
+        print("Widget: Need to fetch doodle \(latestDoodle.id)")
+
+        // Use ImageCache for efficient downloading (memory + disk cache)
+        guard let imageData = await fetchDoodleImageData(from: latestDoodle.imageURL) else {
+            print("Widget: Failed to get image data")
             return
         }
 
@@ -184,11 +286,10 @@ final class DoodleManager: ObservableObject {
         let senderInitials = sender?.initials ?? "?"
         let senderColor = sender?.colorHex ?? "#FF6B54"
 
-        print("Widget: Using sender - name=\(senderName), initials=\(senderInitials)")
-
-        // Save to App Group storage
+        // Save to App Group storage (includes imageURL for cache validation)
         AppGroupStorage.saveLatestDoodle(
             imageData: imageData,
+            imageURL: latestDoodle.imageURL,
             doodleID: latestDoodle.id,
             senderName: senderName,
             senderInitials: senderInitials,
@@ -196,22 +297,24 @@ final class DoodleManager: ObservableObject {
             date: latestDoodle.createdAt
         )
 
-        // Trigger widget refresh using specific widget kind
-        print("Widget: Data saved at \(Date()). Requesting timeline reload...")
+        // Trigger widget refresh
+        print("Widget: Data saved. Requesting timeline reload...")
         WidgetCenter.shared.reloadTimelines(ofKind: AppGroupStorage.widgetKind)
-        print("Widget: Timeline reload requested")
     }
 
-    /// Downloads image data from a URL
-    private func downloadDoodleImage(from urlString: String) async -> Data? {
-        guard let url = URL(string: urlString) else { return nil }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            return data
-        } catch {
-            print("Error downloading doodle image: \(error)")
-            return nil
+    /// Fetches doodle image data using ImageCache (memory + disk cache)
+    /// Returns raw Data for saving to App Group storage
+    private func fetchDoodleImageData(from urlString: String) async -> Data? {
+        // First try to get from ImageCache (memory + disk)
+        if let cachedImage = await ImageCache.shared.image(for: urlString) {
+            // Convert UIImage back to Data for App Group storage
+            return cachedImage.pngData()
         }
+
+        // ImageCache will have downloaded and cached it if available
+        // If we get here, the download failed
+        print("Widget: Image not available from cache or network")
+        return nil
     }
 
     /// Refreshes widget timeline

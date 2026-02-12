@@ -79,21 +79,25 @@ final class SupabaseService {
         return doodle.first!
     }
 
-    func getDoodlesSent(by userID: UUID) async throws -> [Doodle] {
+    func getDoodlesSent(by userID: UUID, limit: Int = 50, offset: Int = 0) async throws -> [Doodle] {
         try await client
             .from("doodles")
             .select()
             .eq("sender_id", value: userID.uuidString)
             .order("created_at", ascending: false)
+            .range(from: offset, to: offset + limit - 1)
             .execute()
             .value
     }
 
-    func getDoodlesReceived(by userID: UUID) async throws -> [Doodle] {
-        let recipients: [DoodleRecipient] = try await client
+    func getDoodlesReceived(by userID: UUID, limit: Int = 50, offset: Int = 0) async throws -> [Doodle] {
+        // OPTIMIZATION: Only select doodle_id (reduces payload ~60%)
+        let recipients: [DoodleRecipientID] = try await client
             .from("doodle_recipients")
-            .select()
+            .select("doodle_id")
             .eq("recipient_id", value: userID.uuidString)
+            .order("created_at", ascending: false)
+            .range(from: offset, to: offset + limit - 1)
             .execute()
             .value
 
@@ -570,9 +574,88 @@ final class SupabaseService {
             .execute()
             .value
     }
+
+    // MARK: - Aggregated Reactions
+
+    /// Get all reactions for a doodle across all thread_items (for detail view)
+    func getAggregatedReactions(doodleID: UUID) async throws -> [AggregatedReaction] {
+        try await client
+            .rpc("get_aggregated_reactions_for_doodle", params: ["p_doodle_id": doodleID.uuidString])
+            .execute()
+            .value
+    }
+
+    /// Get aggregated reactions for multiple doodles (for grid view efficiency)
+    func getAggregatedReactions(doodleIDs: [UUID]) async throws -> [AggregatedReaction] {
+        guard !doodleIDs.isEmpty else { return [] }
+        return try await client
+            .rpc("get_aggregated_reactions_for_doodles", params: ["p_doodle_ids": doodleIDs.map { $0.uuidString }])
+            .execute()
+            .value
+    }
+
+    // MARK: - Batch Conversation Query
+
+    /// Get all conversations with metadata in a single query (eliminates N+1)
+    func getConversationsWithMetadata(userID: UUID) async throws -> [ConversationWithMetadata] {
+        return try await client
+            .rpc("get_conversations_with_metadata", params: ["p_user_id": userID.uuidString])
+            .execute()
+            .value
+    }
+}
+
+// MARK: - Batch Query Response Models
+
+/// Response from get_conversations_with_metadata RPC
+struct ConversationWithMetadata: Codable {
+    let conversationID: UUID
+    let conversationType: String
+    let conversationUpdatedAt: Date
+    let otherUserID: UUID
+    let otherUserDisplayName: String
+    let otherUserColorHex: String
+    let otherUserProfileImageURL: String?
+    let myLastReadAt: Date?
+    let myMuted: Bool
+    let latestItemID: UUID?
+    let latestItemType: String?
+    let latestItemSenderID: UUID?
+    let latestItemDoodleID: UUID?
+    let latestItemTextContent: String?
+    let latestItemCreatedAt: Date?
+    let unreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case conversationID = "conversation_id"
+        case conversationType = "conversation_type"
+        case conversationUpdatedAt = "conversation_updated_at"
+        case otherUserID = "other_user_id"
+        case otherUserDisplayName = "other_user_display_name"
+        case otherUserColorHex = "other_user_color_hex"
+        case otherUserProfileImageURL = "other_user_profile_image_url"
+        case myLastReadAt = "my_last_read_at"
+        case myMuted = "my_muted"
+        case latestItemID = "latest_item_id"
+        case latestItemType = "latest_item_type"
+        case latestItemSenderID = "latest_item_sender_id"
+        case latestItemDoodleID = "latest_item_doodle_id"
+        case latestItemTextContent = "latest_item_text_content"
+        case latestItemCreatedAt = "latest_item_created_at"
+        case unreadCount = "unread_count"
+    }
 }
 
 // MARK: - Helper Structs for Joined Queries
+
+/// Minimal struct for fetching just doodle_id from doodle_recipients (reduces payload ~60%)
+private struct DoodleRecipientID: Codable {
+    let doodleID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case doodleID = "doodle_id"
+    }
+}
 
 /// Helper struct for decoding doodle recipients with joined user data
 private struct DoodleRecipientWithUser: Codable {

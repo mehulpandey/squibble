@@ -4,7 +4,7 @@
 // - A friend request is sent (friendships INSERT with status='pending')
 // - A friend request is accepted (friendships UPDATE to status='accepted')
 // - A text message is sent (thread_items INSERT with type='text')
-// - A reaction is added (reactions INSERT)
+// - A reaction is added or changed (reactions INSERT or UPDATE)
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -259,17 +259,27 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } else if (webhook.table === "reactions" && webhook.type === "INSERT") {
-      // New reaction - notify the thread item sender
+    } else if (webhook.table === "reactions" && (webhook.type === "INSERT" || webhook.type === "UPDATE")) {
+      // New reaction or changed reaction - notify the thread item sender
       const record = webhook.record;
+      const oldRecord = webhook.old_record;
       const userId = record.user_id as string;
       const threadItemId = record.thread_item_id as string;
       const emoji = record.emoji as string;
+      const oldEmoji = oldRecord?.emoji as string | undefined;
 
-      // Get the thread item to find the sender
+      // Skip notification if emoji hasn't changed (safety check for UPDATE)
+      if (webhook.type === "UPDATE" && emoji === oldEmoji) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Skipped - emoji unchanged" }),
+          { headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get the thread item to find the sender and doodle info
       const { data: threadItem } = await supabase
         .from("thread_items")
-        .select("sender_id, conversation_id, type, doodles(image_url)")
+        .select("sender_id, conversation_id, type, doodle_id, doodles(image_url)")
         .eq("id", threadItemId)
         .single();
 
@@ -298,8 +308,9 @@ Deno.serve(async (req) => {
           .single();
 
         if (reactor) {
-          // Get image_url if it's a doodle
+          // Get doodle info if it's a doodle reaction
           const doodleData = threadItem.doodles as { image_url: string } | null;
+          const doodleId = threadItem.doodle_id as string | null;
 
           await handleNotification(supabase, {
             type: "new_reaction",
@@ -307,6 +318,7 @@ Deno.serve(async (req) => {
             sender_id: userId,
             sender_name: reactor.display_name,
             conversation_id: threadItem.conversation_id,
+            doodle_id: doodleId ?? undefined,
             emoji: emoji,
             image_url: doodleData?.image_url,
           });
@@ -385,6 +397,7 @@ async function handleNotification(
       body = `${payload.sender_name} reacted ${payload.emoji || ""} to your ${payload.image_url ? "doodle" : "message"}`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
       if (payload.conversation_id) data.conversation_id = payload.conversation_id;
+      if (payload.doodle_id) data.doodle_id = payload.doodle_id;
       if (payload.emoji) data.emoji = payload.emoji;
       if (payload.image_url) data.image_url = payload.image_url;
       break;
