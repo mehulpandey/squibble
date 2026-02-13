@@ -237,7 +237,6 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showColorPicker) {
                 ColorPickerSettingsView()
-                    .presentationBackground(AppTheme.modalGradient)
             }
             .fullScreenCover(isPresented: $showUpgradeView) {
                 UpgradeView()

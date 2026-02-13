@@ -19,6 +19,7 @@ struct squibbleApp: App {
     @StateObject private var doodleManager = DoodleManager()
     @StateObject private var friendManager = FriendManager()
     @StateObject private var navigationManager = NavigationManager.shared
+    @StateObject private var conversationManager = ConversationManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -28,6 +29,7 @@ struct squibbleApp: App {
                 .environmentObject(doodleManager)
                 .environmentObject(friendManager)
                 .environmentObject(navigationManager)
+                .environmentObject(conversationManager)
                 .onOpenURL { url in
                     // Handle Google Sign-In callback URLs
                     if GIDSignIn.sharedInstance.handle(url) {

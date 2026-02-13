@@ -18,9 +18,44 @@ final class NavigationManager: ObservableObject {
     @Published var pendingDoodleID: UUID?
     @Published var pendingInviteCode: String?
     @Published var pendingReplyRecipientID: UUID?
+    @Published var pendingConversationID: UUID?
+    @Published var pendingConversationUserID: UUID?  // Find/create conversation with this user
     @Published var showAddFriends = false
     @Published var pendingHistoryFilter: DoodleFilter?
     @Published var showPasswordReset = false
+
+    // Grid overlay state (shown at MainTabView level to cover tab bar)
+    @Published var gridOverlayDoodle: Doodle?
+    @Published var gridOverlayReactionEmoji: String?
+    @Published var gridOverlayReactionSummary: ReactionSummary?
+    @Published var gridOverlayRecipients: [User]?
+    var gridOverlayOnReaction: ((String) -> Void)?
+    var gridOverlayOnDismiss: (() -> Void)?
+
+    func showGridOverlay(
+        doodle: Doodle,
+        currentEmoji: String?,
+        reactionSummary: ReactionSummary? = nil,
+        recipients: [User]? = nil,
+        onReaction: @escaping (String) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        gridOverlayDoodle = doodle
+        gridOverlayReactionEmoji = currentEmoji
+        gridOverlayReactionSummary = reactionSummary
+        gridOverlayRecipients = recipients
+        gridOverlayOnReaction = onReaction
+        gridOverlayOnDismiss = onDismiss
+    }
+
+    func dismissGridOverlay() {
+        gridOverlayDoodle = nil
+        gridOverlayReactionEmoji = nil
+        gridOverlayReactionSummary = nil
+        gridOverlayRecipients = nil
+        gridOverlayOnReaction = nil
+        gridOverlayOnDismiss = nil
+    }
 
     // Handle deep links
     func handleDeepLink(_ url: URL) {
@@ -70,6 +105,14 @@ final class NavigationManager: ObservableObject {
             case "draw":
                 // squibble://draw - Open drawing canvas
                 selectedTab = .home
+
+            case "conversation":
+                // squibble://conversation/{id} - Open specific conversation
+                if let conversationIDString = components.path.dropFirst().description.split(separator: "/").first,
+                   let conversationID = UUID(uuidString: String(conversationIDString)) {
+                    pendingConversationID = conversationID
+                    selectedTab = .history
+                }
 
             case "reset-password":
                 // squibble://reset-password#access_token=...&type=recovery
@@ -126,6 +169,14 @@ final class NavigationManager: ObservableObject {
         pendingReplyRecipientID = nil
     }
 
+    func clearPendingConversation() {
+        pendingConversationID = nil
+    }
+
+    func clearPendingConversationUser() {
+        pendingConversationUserID = nil
+    }
+
     // MARK: - Notification Actions
 
     func handleNotificationAction(_ action: NotificationAction) {
@@ -143,6 +194,14 @@ final class NavigationManager: ObservableObject {
 
         case .openHome:
             selectedTab = .home
+
+        case .openConversation(let conversationID):
+            pendingConversationID = conversationID
+            selectedTab = .history
+
+        case .openConversationWithUser(let userID):
+            pendingConversationUserID = userID
+            selectedTab = .history
         }
     }
 }

@@ -70,7 +70,6 @@ struct HomeView: View {
             )
             .presentationDetents([.height(450)])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showBrushSize) {
             BrushSizeSlider(lineWidth: drawingState.selectedTool == .eraser
@@ -78,7 +77,6 @@ struct HomeView: View {
                 : $drawingState.penLineWidth)
                 .presentationDetents([.height(180)])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showSendSheet, onDismiss: handleSheetDismiss) {
             SendSheet(
@@ -91,7 +89,6 @@ struct HomeView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .sheet(isPresented: $showAddFriends) {
             AddFriendsView()
@@ -106,7 +103,6 @@ struct HomeView: View {
             )
             .presentationDetents([.height(320)])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
         }
         .fullScreenCover(isPresented: $showUpgrade) {
             UpgradeView()
@@ -115,6 +111,17 @@ struct HomeView: View {
             // Set initial drawing color to first favorite
             if !favoriteColorsManager.favoriteColors.isEmpty {
                 drawingState.selectedColor = favoriteColorsManager.favoriteColors[0]
+            }
+            // Check for pending navigation from notification
+            if navigationManager.showAddFriends {
+                showAddFriends = true
+                navigationManager.showAddFriends = false
+            }
+        }
+        .onChange(of: navigationManager.showAddFriends) { shouldShow in
+            if shouldShow {
+                showAddFriends = true
+                navigationManager.showAddFriends = false
             }
         }
     }
@@ -173,9 +180,9 @@ struct HomeView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, UIApplication.shared.connectedScenes
+        .padding(.top, (UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0)
+            .first?.windows.first?.safeAreaInsets.top ?? 0) * 0.6)
     }
 
     // MARK: - Canvas Container

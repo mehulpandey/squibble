@@ -188,26 +188,7 @@ extension View {
 
 struct AmbientBackground: View {
     var body: some View {
-        ZStack {
-            // Base gradient
-            AppTheme.backgroundGradient
-
-            // Coral ambient glow (upper area)
-            RadialGradient(
-                colors: [AppTheme.ambientCoralGlow, .clear],
-                center: .topTrailing,
-                startRadius: 0,
-                endRadius: 400
-            )
-
-            // Orange ambient glow (lower area)
-            RadialGradient(
-                colors: [AppTheme.ambientOrangeGlow, .clear],
-                center: .bottomLeading,
-                startRadius: 0,
-                endRadius: 350
-            )
-        }
-        .ignoresSafeArea()
+        AppTheme.backgroundGradient
+            .ignoresSafeArea()
     }
 }

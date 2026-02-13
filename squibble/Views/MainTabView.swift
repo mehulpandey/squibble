@@ -61,6 +61,27 @@ struct MainTabView: View {
                 CustomTabBar(selectedTab: $navigationManager.selectedTab)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
+            // Grid overlay (shown above tab bar to cover it)
+            if let doodle = navigationManager.gridOverlayDoodle,
+               let userID = authManager.currentUserID {
+                DoodleReactionOverlay(
+                    doodle: doodle,
+                    threadItemID: nil,
+                    currentUserID: userID,
+                    currentEmoji: navigationManager.gridOverlayReactionEmoji,
+                    preloadedReactionSummary: navigationManager.gridOverlayReactionSummary,
+                    preloadedRecipients: navigationManager.gridOverlayRecipients,
+                    onReactionSelected: { emoji in
+                        navigationManager.gridOverlayOnReaction?(emoji)
+                    },
+                    onDismiss: {
+                        navigationManager.gridOverlayOnDismiss?()
+                        navigationManager.dismissGridOverlay()
+                    }
+                )
+                .ignoresSafeArea()
+            }
         }
         .ignoresSafeArea(.keyboard)
     }
@@ -73,6 +94,7 @@ struct CustomTabBar: View {
     @Namespace private var animation
 
     var body: some View {
+        // Floating tab bar with no background
         HStack(spacing: 0) {
             ForEach(Tab.allCases, id: \.rawValue) { tab in
                 TabBarButton(
@@ -80,19 +102,36 @@ struct CustomTabBar: View {
                     isSelected: selectedTab == tab,
                     namespace: animation
                 ) {
+                    // Light haptic on tab switch
+                    if selectedTab != tab {
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
                     withAnimation(.easeInOut(duration: 0.25)) {
                         selectedTab = tab
                     }
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
         .background(
-            TabBarBackground()
+            ZStack {
+                // Solid dark base for opacity
+                Capsule()
+                    .fill(Color.black.opacity(0.3))
+                // Blur on top
+                VisualEffectBlur(blurStyle: .regular)
+                    .clipShape(Capsule())
+            }
         )
-        .padding(.horizontal, 70)
-        .padding(.bottom, 16)
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 4)
+        .padding(.horizontal, 100)
+        .padding(.bottom, 8)
     }
 }
 
@@ -107,33 +146,18 @@ struct TabBarButton: View {
             ZStack {
                 if isSelected {
                     Capsule()
-                        .fill(AppTheme.primaryGradient)
+                        .fill(Color.white.opacity(0.15))
                         .matchedGeometryEffect(id: "tabBackground", in: namespace)
-                        .shadow(color: AppTheme.primaryGlowSoft, radius: 16, x: 0, y: 4)
                 }
 
-                if isSelected {
-                    // Selected: icon only with scale animation
-                    Image(systemName: tab.icon)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                        .scaleEffect(1.1)
-                } else {
-                    // Inactive: icon + label
-                    VStack(spacing: 2) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(AppTheme.textTertiary)
-                            .scaleEffect(1.0)
-
-                        Text(tab.title)
-                            .font(.custom("Avenir-Medium", size: 10))
-                            .foregroundColor(AppTheme.textTertiary)
-                    }
-                }
+                Image(systemName: tab.icon)
+                    .font(.system(size: isSelected ? 20 : 18, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? AppTheme.textPrimary : AppTheme.textTertiary)
+                    .scaleEffect(isSelected ? 1.1 : 1.0)
             }
-            .frame(height: 44)
+            .frame(height: 54)
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(TabButtonStyle())
     }
@@ -147,28 +171,6 @@ struct TabButtonStyle: ButtonStyle {
     }
 }
 
-struct TabBarBackground: View {
-    var body: some View {
-        Capsule()
-            .fill(AppTheme.glassGradient)
-            .overlay(
-                Capsule()
-                    .stroke(AppTheme.glassBorder, lineWidth: 1)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(AppTheme.glassHighlight, lineWidth: 1)
-                    .padding(1)
-                    .mask(
-                        LinearGradient(
-                            colors: [.white, .clear],
-                            startPoint: .top,
-                            endPoint: .center
-                        )
-                    )
-            )
-    }
-}
 
 // MARK: - Preview
 

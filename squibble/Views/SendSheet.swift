@@ -29,45 +29,33 @@ struct SendSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Drag handle
-            Capsule()
-                .fill(AppTheme.modalHandle)
-                .frame(width: 40, height: 4)
-                .padding(.top, 12)
-                .padding(.bottom, 20)
+        NavigationStack {
+            VStack(spacing: 0) {
+                if friendManager.friends.isEmpty {
+                    // Empty state
+                    emptyFriendsView
+                } else {
+                    // Friend list
+                    friendListView
+                }
 
-            // Header
-            HStack {
-                Text("Send to...")
-                    .font(.custom("Avenir-Heavy", size: 24))
-                    .foregroundColor(AppTheme.textPrimary)
+                Spacer(minLength: 0)
 
-                Spacer()
-
-                Button(action: { isPresented = false }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(AppTheme.textTertiary)
+                // Send button
+                sendButton
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
+            }
+            .navigationTitle("Send to...")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .foregroundColor(AppTheme.primaryStart)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
-
-            if friendManager.friends.isEmpty {
-                // Empty state
-                emptyFriendsView
-            } else {
-                // Friend list
-                friendListView
-            }
-
-            Spacer(minLength: 0)
-
-            // Send button
-            sendButton
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
         }
         .overlay(
             Group {
@@ -142,12 +130,12 @@ struct SendSheet: View {
     // MARK: - Friend List View
 
     private var friendListView: some View {
-        VStack(spacing: 0) {
-            // Select All toggle
+        List {
+            // Select All row
             Button(action: toggleSelectAll) {
                 HStack {
                     Text("Select All")
-                        .font(.custom("Avenir-Medium", size: 16))
+                        .font(.custom("Avenir-Medium", size: 17))
                         .foregroundColor(AppTheme.textPrimary)
 
                     Spacer()
@@ -156,26 +144,56 @@ struct SendSheet: View {
                         .font(.system(size: 24))
                         .foregroundColor(allSelected ? AppTheme.secondary : AppTheme.textTertiary)
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
             }
-
-            Rectangle()
-                .fill(AppTheme.divider)
-                .frame(height: 1)
-                .padding(.horizontal, 24)
+            .listRowBackground(Color.clear)
 
             // Friend list
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(friendManager.friends) { friend in
-                        FriendSelectionRow(
-                            friend: friend,
-                            isSelected: selectedFriendIDs.contains(friend.id),
-                            action: { toggleFriend(friend) }
-                        )
+            ForEach(friendManager.friends) { friend in
+                Button(action: { toggleFriend(friend) }) {
+                    HStack(spacing: 12) {
+                        // Avatar
+                        friendAvatar(for: friend)
+
+                        // Name
+                        Text(friend.displayName)
+                            .font(.custom("Avenir-Medium", size: 17))
+                            .foregroundColor(AppTheme.textPrimary)
+
+                        Spacer()
+
+                        // Checkbox on the right
+                        Image(systemName: selectedFriendIDs.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 24))
+                            .foregroundColor(selectedFriendIDs.contains(friend.id) ? AppTheme.secondary : AppTheme.textTertiary)
                     }
                 }
+                .listRowBackground(Color.clear)
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func friendAvatar(for friend: User) -> some View {
+        let friendColor = Color(hex: friend.colorHex.replacingOccurrences(of: "#", with: ""))
+
+        if let profileURL = friend.profileImageURL {
+            CachedAsyncImage(urlString: profileURL)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(friendColor, lineWidth: 2)
+                )
+        } else {
+            ZStack {
+                Circle()
+                    .fill(friendColor)
+                    .frame(width: 44, height: 44)
+                Text(friend.initials)
+                    .font(.custom("Avenir-Heavy", size: 14))
+                    .foregroundColor(.white)
             }
         }
     }
@@ -367,91 +385,6 @@ enum SendError: LocalizedError {
     }
 }
 
-// MARK: - Friend Selection Row
-
-struct FriendSelectionRow: View {
-    let friend: User
-    let isSelected: Bool
-    let action: () -> Void
-
-    private var friendColor: Color {
-        Color(hex: friend.colorHex.replacingOccurrences(of: "#", with: ""))
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                // Avatar with profile picture or initials
-                friendAvatar
-
-                // Name
-                Text(friend.displayName)
-                    .font(.custom("Avenir-Medium", size: 17))
-                    .foregroundColor(AppTheme.textPrimary)
-
-                Spacer()
-
-                // Selection indicator with mustard yellow for selected
-                ZStack {
-                    Circle()
-                        .stroke(isSelected ? AppTheme.secondary : AppTheme.buttonInactiveBorder, lineWidth: 2)
-                        .frame(width: 26, height: 26)
-
-                    if isSelected {
-                        Circle()
-                            .fill(AppTheme.secondary)
-                            .frame(width: 26, height: 26)
-                            .shadow(color: AppTheme.secondaryGlow, radius: 8, x: 0, y: 0)
-
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
-            .background(
-                isSelected ? AppTheme.secondaryBackground : Color.clear
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    @ViewBuilder
-    private var friendAvatar: some View {
-        if let profileURL = friend.profileImageURL {
-            CachedAsyncImage(urlString: profileURL)
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 48, height: 48)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(friendColor, lineWidth: 2.5)
-                )
-        } else {
-            defaultAvatar
-        }
-    }
-
-    private var defaultAvatar: some View {
-        ZStack {
-            Circle()
-                .fill(AppTheme.glassBackgroundStrong)
-                .frame(width: 48, height: 48)
-
-            Text(friend.initials)
-                .font(.custom("Avenir-Heavy", size: 16))
-                .foregroundColor(AppTheme.textSecondary)
-        }
-        .overlay(
-            Circle()
-                .stroke(friendColor, lineWidth: 2.5)
-        )
-    }
-}
-
 #Preview {
     SendSheet(
         drawingState: DrawingState(),
@@ -462,5 +395,4 @@ struct FriendSelectionRow: View {
     .environmentObject(AuthManager())
     .environmentObject(NavigationManager())
     .environmentObject(UserManager())
-    .presentationBackground(AppTheme.modalGradient)
 }

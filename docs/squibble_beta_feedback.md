@@ -10,9 +10,11 @@ Consolidated from 5 testers (Mehul, Sasank, Anshuman, Prath, Aashrita) — Febru
 
 ---
 
-## P0 — Fix Before Main Launch
+## Release 1.01
 
-Critical bugs that will cause user churn or bad first impressions.
+### PR 1
+
+Critical bugs.
 
 - [xyz] **Push notifications not working** — Multiple testers received zero notifications for doodles, friend requests, or accepted requests. Notifications work in dev but not prod *(Sasank, Anshuman, Prath)* — **Fixed: Edge function was using sandbox APNs server; switched to production. Note: deploy hit internal Supabase error, needs manual redeploy.**
 - [xyz] **Friend invite link is incorrect** — Share message contains wrong app URL. Should be: `https://apps.apple.com/us/app/squibble-doodle-widget/id6757321861` *(Mehul)* — **Fixed: Updated URL in AddFriendsView.swift**
@@ -21,74 +23,97 @@ Critical bugs that will cause user churn or bad first impressions.
 - [xyz] **Gmail login failing** — Login via Gmail was not working for at least one tester. *(Anshuman)* — **Fixed: Added Google Sign-In URL handling in onOpenURL (was missing with multi-scene support)**
 - [xyz] **Widget not updating with new doodles** — Widget frequently shows stale content instead of the most recently received doodle. This is sporadic - sometimes is an issue and sometimes is not *(Mehul)* — **Fixed: Added Notification Service Extension that intercepts push notifications, downloads doodle image, and updates widget via App Group even when app is backgrounded/killed. Also updated edge function to include image_url and mutable-content in push payload.**
 
----
+### PR 2
 
-## P0.5 — Fix Before Main Launch
-
-Non-user facing issues.
+Backend issues.
 
 - [xyz] **Cached egress usage exceeding free tier limit (5 gb)** - Cached egress should not be exceeding free tier limit since I only have ~20 users. Make app more efficient to mitigate this. Put in separate PR from above issues. — **Fixed: Switched doodles from PNG to JPEG (0.7 quality), added profile image resizing (max 400px), added disk+memory image cache, set Cache-Control headers on uploads (1 year for doodles, 1 hour for profiles).**
 
+### PR 3
+
+Minor bugs and UX friction.
+
+- [xyz] **Tap-to-dot not working** — Tapping the screen to draw a dot doesn't register (only drag works). *(Anshuman)* — **Fixed: `endPath()` now saves single-point paths, and `drawPath()` renders them as filled circles. Also updated export function to render dots.**
+- [xyz] **Brush size shared between pen and eraser** — Changing brush size affects both pen and eraser tools. These should be independent. *(Sasank)* — **Fixed: Split `lineWidth` into `penLineWidth` and `eraserLineWidth` in DrawingState. Computed `lineWidth` property delegates to active tool. Each tool remembers its own size.**
+- [xyz] **Widget install instructions may be wrong** — Onboarding should say: hold home screen → edit → add widget → search Squibble → etc (use more professional wording). *(Mehul)* — **Fixed: Updated onboarding steps to: Hold home screen/tap Edit → Add Widget → Search "Squibble" → Select size and Add Widget.**
+- [xyz] **Trash button clears uploaded images** — Trash icon should only clear drawn strokes, not image. Uploading a new image should replace existing. Need a separate way to remove the image. *(Mehul)* — **Fixed: Trash now calls `clearDrawingOnly()` (strokes only). Added "Remove Image" option in More Options sheet when an image is present.**
+- [xyz] **Save image: no confirmation feedback** — No haptic or visual feedback when saving an image. *(Sasank)* — **Fixed: Added dedicated save-to-photos button (download icon) in DoodleDetailView top bar with success haptic feedback and animated "Saved to Photos" toast.**
+- [xyz] **Color picker "+" icon confusing** — On color picker circles, replace overlaid "+" icon with an edit icon (pencil/pen or something). *(Sasank, Prath)* — **Fixed: Replaced "plus" icon with "pencil" icon on selected color circles.**
+- [xyz] **"Start drawing" empty state styling** — Orange color on text on empty state canvas clashes against some background colors. *(Mehul)* — **Fixed: Empty state hint now uses adaptive color based on perceived brightness of canvas background (dark text on light backgrounds, light text on dark backgrounds).**
+- [xyz] **Show outgoing friend requests** — Can't see outgoing pending friend requests in the Friends list. *(Mehul)* — **Fixed: Added "Sent Requests" section in Friends view showing outgoing pending requests with cancel button. Backend fetches outgoing requests via `getOutgoingFriendRequests()` in FriendManager.**
+- [xyz] **Friends list** — On Profile screen below Activity calendar, add section that lists all current friends *(Prath)* — **Fixed: Added "Friends" section below Activity calendar on Profile screen showing all friends with avatars. Includes "Add" button that opens AddFriendsView. Shows empty state when no friends.**
+- [xyz] **More color options** - In color picker pop-up screen (the screen that appears after a user clicks on a color that is already selected), have 2 tabs at the top - "Preset" and "Custom". Preset should have the 5x5 color grid that already exists in the app. Custom should have a more precise color picker screen where a user can pick an exact color (color wheel or something?) — **Fixed: Added "Preset" and "Custom" tabs to ExpandedColorPickerView. Preset tab has 5x5 grid with 16px vertical spacing. Custom tab has color preview circle on the left with three labeled HSB sliders (H/S/B) on the right. Color applies live as you drag. Brighter active tab text for better contrast.**
+
+## Fixed by above PRs
+
+One-off bugs.
+
+- [xyz] **3-dot menu freezing app** — "More options" button to the right of trash icon is unresponsive/freezes on one tester's device (iPhone 15 Pro Max with iOS 17.6.1). This is a one-off error as it works on other testers' devices. *(Anshuman)*
+- [xyz] **Timing out when sending** - In one instance, app is timing out when sending to multiple people (one-off error, doesn't happen every time). *(Sasank)*
+
+## Deployment Notes 
+
+- App version 1.01 sent to the app store - submitted 2/2/2026
+
 ---
 
-## P1 — Fix Soon (Next Release)
+## Release 1.02
 
-Minor bugs and UX friction that meaningfully impact the experience.
+Chat, reactions, UI improvements
 
-### Persistent Bugs
+- [x] **Messaging style UI for doodle history / conversation threading** — Add a messaging style UI showing doodle exchange history between two friends, reaction history, and ability to send text messages. *(Anshuman, Prath)*
+- [x] **Reactions to doodles (emojis)** — Quick emoji reactions on received doodles (show an individual user's reaction in their chat, show cumulative reactions from all people who reacted to a doodle on history + doodle detail pages). *(Mehul, Aashrita)*
+- [x] **Improve UI** - Fix tab bar and/or header bars (remove black background bar, add blurring just like chat UI)
 
-- [xy] **Tap-to-dot not working** — Tapping the screen to draw a dot doesn't register (only drag works). *(Anshuman)* — **Fixed: `endPath()` now saves single-point paths, and `drawPath()` renders them as filled circles. Also updated export function to render dots.**
-
-### UX Improvements
-
-- [xy] **Brush size shared between pen and eraser** — Changing brush size affects both pen and eraser tools. These should be independent. *(Sasank)* — **Fixed: Split `lineWidth` into `penLineWidth` and `eraserLineWidth` in DrawingState. Computed `lineWidth` property delegates to active tool. Each tool remembers its own size.**
-- [xy] **Widget install instructions may be wrong** — Onboarding should say: hold home screen → edit → add widget → search Squibble → etc (use more professional wording). *(Mehul)* — **Fixed: Updated onboarding steps to: Hold home screen/tap Edit → Add Widget → Search "Squibble" → Select size and Add Widget.**
-- [xy] **Trash button clears uploaded images** — Trash icon should only clear drawn strokes, not image. Uploading a new image should replace existing. Need a separate way to remove the image. *(Mehul)* — **Fixed: Trash now calls `clearDrawingOnly()` (strokes only). Added "Remove Image" option in More Options sheet when an image is present.**
-- [xy] **Save image: no confirmation feedback** — No haptic or visual feedback when saving an image. *(Sasank)* — **Fixed: Added dedicated save-to-photos button (download icon) in DoodleDetailView top bar with success haptic feedback and animated "Saved to Photos" toast.**
-- [xy] **Color picker "+" icon confusing** — On color picker circles, replace overlaid "+" icon with an edit icon (pencil/pen or something). *(Sasank, Prath)* — **Fixed: Replaced "plus" icon with "pencil" icon on selected color circles.**
-- [xy] **"Start drawing" empty state styling** — Orange color on text on empty state canvas clashes against some background colors. *(Mehul)* — **Fixed: Empty state hint now uses adaptive color based on perceived brightness of canvas background (dark text on light backgrounds, light text on dark backgrounds).**
-- [xy] **Show outgoing friend requests** — Can't see outgoing pending friend requests in the Friends list. *(Mehul)* — **Fixed: Added "Sent Requests" section in Friends view showing outgoing pending requests with cancel button. Backend fetches outgoing requests via `getOutgoingFriendRequests()` in FriendManager.**
-- [xy] **Friends list** — On Profile screen below Activity calendar, add section that lists all current friends *(Prath)* — **Fixed: Added "Friends" section below Activity calendar on Profile screen showing all friends with avatars. Includes "Add" button that opens AddFriendsView. Shows empty state when no friends.**
-- [xy] **More color options** - In color picker pop-up screen (the screen that appears after a user clicks on a color that is already selected), have 2 tabs at the top - "Preset" and "Custom". Preset should have the 5x5 color grid that already exists in the app. Custom should have a more precise color picker screen where a user can pick an exact color (color wheel or something?) — **Fixed: Added "Preset" and "Custom" tabs to ExpandedColorPickerView. Preset tab has 5x5 grid with 16px vertical spacing. Custom tab has color preview circle on the left with three labeled HSB sliders (H/S/B) on the right. Color applies live as you drag. Brighter active tab text for better contrast.**
-
-### One-off Bugs
-- [ ] **3-dot menu freezing app** — "More options" button to the right of trash icon is unresponsive/freezes on one tester's device (iPhone 15 Pro Max with iOS 17.6.1). This is a one-off error as it works on other testers' devices. *(Anshuman)*
-- [ ] **Timing out when sending** - In one instance, app is timing out when sending to multiple people (one-off error, doesn't happen every time). *(Sasank)*
+### Deployment Notes
+- Code deployment needed
+- Supabase migrations needed (008 to 015) - double check this
+- Enable real-time on thread-items table
+- Edge function deployment needed
+- Database webhooks setup needed
+    1. Go to Supabase Dashboard → Database → Webhooks
+    2. Create webhooks for these tables, all pointing to the send-push-notification Edge Function URL:
+        - notify-new-message: thread_items → INSERT (for text messages)
+        - notify-new-reaction: reactions → INSERT (for reactions)
+    3. Make sure "Enable payload" is selected to include record data
 
 ---
 
-## P2 — Backlog (Future Releases)
+### Release 1.03
 
-Feature requests and enhancements. Prioritize by engagement impact vs effort.
+Groups
 
-### High Value
-
-- [ ] **Collaborative drawing / reply on doodle** — Draw on top of a received doodle and send it back. *(Mehul, Prath)*
-- [ ] **Reactions to doodles (emojis)** — Quick emoji reactions on received doodles (show all reactions if doodle was sent to multiple people, show on history/detail pages). *(Mehul, Aashrita)*
-- [ ] **Per-friend streak count and stats** — Snapchat-style streaks per friend, plus total doodles exchanged. This can show up on the friends section of the profile page *(Prath)*
-- [ ] **Messaging style UI for doodle history / conversation threading** — Add a messaging style UI in the History tab. At the top, user should be able to switch between the grid view (which is what the app currently shows) and the messaging style view. Messaging style view should show doodle exchange history between two friends, reaction history, and ability to send text messages. *(Anshuman, Prath)*
 - [ ] **Groups** — Create groups and be able to send doodles to entire groups at once, not just by the person. Groups can show up in the messaging view in the History tab (like a group chat). Need to think through mechanics of how this would work (how to add/remove people from groups, name groups, etc) *(Mehul, Sasank)*
 
-### Medium Value
+---
 
+### Release 1.04
+
+Low priority features
+
+- [ ] **Per-friend streak count and stats** — Snapchat-style streaks per friend. Show on the friends section of the profile page as well as their chat *(Prath)*
+- [ ] **Collaborative drawing / reply on doodle** — Draw on top of a received doodle and send it back. *(Mehul, Prath)*
 - [ ] **Unviewed doodle indicator on widget** — Visual badge when multiple unseen doodles are queued (only latest shows currently). *(Mehul)*
 - [ ] **Resend doodle to a different friend** — Forward an already-sent doodle to someone new without re-uploading. *(Sasank)*
-- [ ] **Add-to-story shortcut** — Quick action to post a doodle as your "story". *(Sasank)*
-
-### Lower Value
-
-- [ ] **Text on doodles** — Type and place text labels on doodles. *(Anshuman)*
-- [ ] **Shape tools (squares, circles, etc.)** — Basic shape insertion. *(Anshuman)*
-- [ ] **Phone number login** — Alternative signup/login via phone number. *(Anshuman)*
-- [ ] **Contacts integration for invites** — Import contacts to invite and add friends. *(Aashrita)*
 
 ---
 
-## P3+ - Deferred List (lower priority, maybe fix later)
+### Release 1.05 (think through this first before mass marketing)
+
+- [ ] **Switch to usernames** - Switch user profile system to username based instead of invite code based. Let people look up users by their username and add them like other social media apps, rather than typing in an invite code. How complex is this change? How to migrate existing users onto this system?
+
+---
+
+## Deferred List
 
 - [x] **Bottom nav: Profile/Home toggle bug** — After visiting Profile then Home, subsequent taps alternate between the two screens. *(Sasank)* — **Fixed: Replaced spring animation (which caused overshoot interfering with matchedGeometryEffect hit areas) with easeInOut on tab bar selection.** <- partially fixed, sometimes flips back and forth but sometimes does not
 - [x] **App lags on initial startup** — For the first few seconds on first time app startup, the whole app is very laggy and unresponsive (switching tabs, brush strokes, etc). This gives off a bad first impression for the app. *(Prath)* — **Fixed: Removed animated splash→main transition that forced expensive layout computation during animation. Batch-fetch friends in single query instead of N+1. Parallel doodle loading (sent+received). Deferred AdMob init by 3s, deferred realtime/widget work by 2s.** <- lag still exists, but not a huge deal (one-time bug per user)
-
+- [ ] **Phone number login** — Alternative signup/login via phone number. *(Anshuman)*
+- [ ] **Contacts integration for invites** — Import contacts to invite and add friends. *(Aashrita)*
+- [ ] **Text on doodles** — Type and place text labels on doodles. *(Anshuman)*
+- [ ] **Shape tools (squares, circles, etc.)** — Basic shape insertion. *(Anshuman)*
+- [ ] **More stats per friend** - Show more stats per friend in new friendship detail pages (highest streak, total doodles exchanged, etc) - need to think through friendship page UI, entry/exit points, etc OR just put basic stats in friends section of Profile tab
+- [ ] **Add-to-story shortcut** — Quick action to post a doodle as your "story". *(Sasank)*
 
 ---
 

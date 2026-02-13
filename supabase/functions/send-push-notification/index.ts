@@ -3,6 +3,8 @@
 // - A new doodle is sent (doodle_recipients INSERT)
 // - A friend request is sent (friendships INSERT with status='pending')
 // - A friend request is accepted (friendships UPDATE to status='accepted')
+// - A text message is sent (thread_items INSERT with type='text')
+// - A reaction is added or changed (reactions INSERT or UPDATE)
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -19,13 +21,16 @@ const BUNDLE_ID = "mehulpandey.squibble";
 const APNS_HOST = "api.sandbox.push.apple.com";
 
 interface NotificationPayload {
-  type: "new_doodle" | "friend_request" | "friend_accepted";
+  type: "new_doodle" | "friend_request" | "friend_accepted" | "new_text_message" | "new_reaction";
   recipient_id: string;
   sender_id?: string;
   sender_name?: string;
   doodle_id?: string;
   image_url?: string;
   sender_color_hex?: string;
+  conversation_id?: string;
+  text_preview?: string;
+  emoji?: string;
 }
 
 interface WebhookPayload {
@@ -215,6 +220,110 @@ Deno.serve(async (req) => {
           });
         }
       }
+    } else if (webhook.table === "thread_items" && webhook.type === "INSERT") {
+      // New thread item - only notify for text messages (doodles handled separately via doodle_recipients)
+      const record = webhook.record;
+      const itemType = record.type as string;
+
+      if (itemType === "text") {
+        const senderId = record.sender_id as string;
+        const conversationId = record.conversation_id as string;
+        const textContent = record.text_content as string;
+
+        // Get sender info
+        const { data: sender } = await supabase
+          .from("users")
+          .select("display_name")
+          .eq("id", senderId)
+          .single();
+
+        // Get all other participants in the conversation (excluding muted)
+        const { data: participants } = await supabase
+          .from("conversation_participants")
+          .select("user_id")
+          .eq("conversation_id", conversationId)
+          .neq("user_id", senderId)
+          .eq("muted", false);
+
+        if (sender && participants && participants.length > 0) {
+          // Send notification to each other participant
+          for (const participant of participants) {
+            await handleNotification(supabase, {
+              type: "new_text_message",
+              recipient_id: participant.user_id,
+              sender_id: senderId,
+              sender_name: sender.display_name,
+              conversation_id: conversationId,
+              text_preview: textContent.substring(0, 100),
+            });
+          }
+        }
+      }
+    } else if (webhook.table === "reactions" && (webhook.type === "INSERT" || webhook.type === "UPDATE")) {
+      // New reaction or changed reaction - notify the thread item sender
+      const record = webhook.record;
+      const oldRecord = webhook.old_record;
+      const userId = record.user_id as string;
+      const threadItemId = record.thread_item_id as string;
+      const emoji = record.emoji as string;
+      const oldEmoji = oldRecord?.emoji as string | undefined;
+
+      // Skip notification if emoji hasn't changed (safety check for UPDATE)
+      if (webhook.type === "UPDATE" && emoji === oldEmoji) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Skipped - emoji unchanged" }),
+          { headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get the thread item to find the sender and doodle info
+      const { data: threadItem } = await supabase
+        .from("thread_items")
+        .select("sender_id, conversation_id, type, doodle_id, doodles(image_url)")
+        .eq("id", threadItemId)
+        .single();
+
+      if (threadItem && threadItem.sender_id !== userId) {
+        // Check if the sender has muted this conversation
+        const { data: senderParticipant } = await supabase
+          .from("conversation_participants")
+          .select("muted")
+          .eq("conversation_id", threadItem.conversation_id)
+          .eq("user_id", threadItem.sender_id)
+          .single();
+
+        // Skip notification if sender has muted the conversation
+        if (senderParticipant?.muted) {
+          return new Response(
+            JSON.stringify({ success: true, message: "Skipped - conversation muted" }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get reactor's name
+        const { data: reactor } = await supabase
+          .from("users")
+          .select("display_name")
+          .eq("id", userId)
+          .single();
+
+        if (reactor) {
+          // Get doodle info if it's a doodle reaction
+          const doodleData = threadItem.doodles as { image_url: string } | null;
+          const doodleId = threadItem.doodle_id as string | null;
+
+          await handleNotification(supabase, {
+            type: "new_reaction",
+            recipient_id: threadItem.sender_id,
+            sender_id: userId,
+            sender_name: reactor.display_name,
+            conversation_id: threadItem.conversation_id,
+            doodle_id: doodleId ?? undefined,
+            emoji: emoji,
+            image_url: doodleData?.image_url,
+          });
+        }
+      }
     }
 
     return new Response(
@@ -256,7 +365,7 @@ async function handleNotification(
 
   switch (payload.type) {
     case "new_doodle":
-      title = "New Squibble!";
+      title = "Squibble";
       body = `${payload.sender_name} sent you a doodle!`;
       if (payload.doodle_id) data.doodle_id = payload.doodle_id;
       if (payload.sender_id) data.sender_id = payload.sender_id;
@@ -265,15 +374,32 @@ async function handleNotification(
       break;
 
     case "friend_request":
-      title = "Friend Request";
+      title = "Squibble";
       body = `${payload.sender_name} wants to connect with you`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
       break;
 
     case "friend_accepted":
-      title = "Request Accepted!";
+      title = "Squibble";
       body = `${payload.sender_name} accepted your friend request`;
       if (payload.sender_id) data.sender_id = payload.sender_id;
+      break;
+
+    case "new_text_message":
+      title = "Squibble";
+      body = `${payload.sender_name}: ${payload.text_preview || "Sent you a message"}`;
+      if (payload.sender_id) data.sender_id = payload.sender_id;
+      if (payload.conversation_id) data.conversation_id = payload.conversation_id;
+      break;
+
+    case "new_reaction":
+      title = "Squibble";
+      body = `${payload.sender_name} reacted ${payload.emoji || ""} to your ${payload.image_url ? "doodle" : "message"}`;
+      if (payload.sender_id) data.sender_id = payload.sender_id;
+      if (payload.conversation_id) data.conversation_id = payload.conversation_id;
+      if (payload.doodle_id) data.doodle_id = payload.doodle_id;
+      if (payload.emoji) data.emoji = payload.emoji;
+      if (payload.image_url) data.image_url = payload.image_url;
       break;
 
     default:

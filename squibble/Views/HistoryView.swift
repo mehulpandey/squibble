@@ -13,45 +13,58 @@ enum DoodleFilter: String, CaseIterable {
     case received = "Received"
 }
 
+enum HistoryViewMode: String, CaseIterable {
+    case grid = "Grid"
+    case chats = "Chats"
+}
+
 struct HistoryView: View {
     @EnvironmentObject var doodleManager: DoodleManager
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var friendManager: FriendManager
     @EnvironmentObject var userManager: UserManager
     @EnvironmentObject var navigationManager: NavigationManager
+    @EnvironmentObject var conversationManager: ConversationManager
 
+    @State private var viewMode: HistoryViewMode = .grid
     @State private var selectedFilter: DoodleFilter = .all
     @State private var showPersonFilter = false
     @State private var selectedPersonID: UUID?
-    @State private var selectedDoodle: Doodle?
     @State private var hasRetriedPendingDoodle = false
+    @State private var doodleReactionSummaries: [UUID: ReactionSummary] = [:]  // Aggregated reactions cache
+    @State private var lastReactionLoadTime: Date?  // For debouncing reaction loads
+
+    private var safeAreaTop: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets.top ?? 0
+    }
+
+    // Header height: safeAreaTop + title row + optional filter bar
+    private var headerContentHeight: CGFloat {
+        viewMode == .grid ? 56 + 56 : 56  // title row + filter bar in grid mode
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerBar
-
-            // Filter bar
-            filterBar
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-
-            // Content
-            if doodleManager.isLoading {
-                loadingView
-            } else if filteredDoodles.isEmpty {
-                emptyStateView
+        ZStack(alignment: .top) {
+            // Content based on view mode
+            if viewMode == .grid {
+                if doodleManager.isLoading {
+                    loadingView
+                } else if filteredDoodles.isEmpty {
+                    emptyStateView
+                } else {
+                    doodleGrid
+                }
             } else {
-                doodleGrid
+                // Chats mode - conversation list
+                ConversationListView(topPadding: 1.6 * safeAreaTop + headerContentHeight + 16)
             }
 
-            // Banner ad for free users
-            BannerAdContainer()
-                .padding(.top, 8)
-
-            // Space for tab bar
-            Spacer().frame(height: 100)
+            // Floating header at top
+            floatingHeader
         }
+        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $showPersonFilter) {
             PersonFilterSheet(
                 selectedPersonID: $selectedPersonID,
@@ -59,13 +72,10 @@ struct HistoryView: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
-            .presentationBackground(AppTheme.modalGradient)
-        }
-        .fullScreenCover(item: $selectedDoodle) { doodle in
-            DoodleDetailView(doodle: doodle, allDoodles: filteredDoodles)
         }
         .task {
             await loadDoodles()
+            await loadReactions()
         }
         .onAppear {
             // Check for pending filter from navigation
@@ -76,16 +86,78 @@ struct HistoryView: View {
 
             // Try to open pending doodle from widget/deep link
             tryOpenPendingDoodle()
+
+            // Switch to Chats mode if there's a pending conversation
+            if navigationManager.pendingConversationID != nil || navigationManager.pendingConversationUserID != nil {
+                viewMode = .chats
+            }
         }
         .onChange(of: navigationManager.pendingDoodleID) { _ in
             // Handle deep link when view is already visible
             hasRetriedPendingDoodle = false
             tryOpenPendingDoodle()
         }
+        .onChange(of: navigationManager.pendingConversationID) { newID in
+            // Switch to Chats mode for conversation deep links
+            if newID != nil {
+                viewMode = .chats
+            }
+        }
+        .onChange(of: navigationManager.pendingConversationUserID) { newID in
+            // Switch to Chats mode for conversation deep links
+            if newID != nil {
+                viewMode = .chats
+            }
+        }
         .onChange(of: doodleManager.allDoodles) { _ in
             // Retry opening pending doodle after doodles load
             tryOpenPendingDoodle()
         }
+        .onChange(of: doodleManager.receivedDoodles.count) { newCount in
+            // Force reload reactions when new doodles arrive (bypasses debounce)
+            // This is critical for realtime updates to show immediately
+            print("HistoryView: receivedDoodles count changed to \(newCount), force reloading reactions")
+            Task {
+                await loadReactions(forceReload: true)
+            }
+        }
+        .onChange(of: doodleManager.sentDoodles.count) { newCount in
+            // Force reload reactions when sent doodles change (user just sent a doodle)
+            print("HistoryView: sentDoodles count changed to \(newCount), force reloading reactions")
+            Task {
+                await loadReactions(forceReload: true)
+            }
+        }
+        .onChange(of: viewMode) { newMode in
+            // Reload reactions when switching to grid view (ensures sync after chat interactions)
+            if newMode == .grid {
+                Task {
+                    await loadReactions()
+                }
+            }
+        }
+    }
+
+    // MARK: - Floating Header
+
+    private var floatingHeader: some View {
+        ZStack(alignment: .top) {
+            // Semi-transparent background
+            AppTheme.backgroundTop.opacity(0.95)
+
+            // Content layer
+            VStack(spacing: 0) {
+                headerBar
+
+                if viewMode == .grid {
+                    filterBar
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+                }
+            }
+            .padding(.top, 1.6 * safeAreaTop)
+        }
+        .frame(height: 1.6 * safeAreaTop + headerContentHeight)
     }
 
     // MARK: - Header Bar
@@ -97,11 +169,31 @@ struct HistoryView: View {
                 .foregroundColor(AppTheme.textPrimary)
 
             Spacer()
+
+            // Compact icon toggle
+            viewModeToggle
         }
         .padding(.horizontal, 20)
-        .padding(.top, UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.safeAreaInsets.top ?? 0)
+    }
+
+    // MARK: - View Mode Toggle
+
+    private var viewModeToggle: some View {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                viewMode = viewMode == .grid ? .chats : .grid
+            }
+        }) {
+            // Show filled icon for the view you'll switch TO
+            Image(systemName: viewMode == .grid ? "bubble.left.and.bubble.right.fill" : "square.grid.2x2.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(AppTheme.textSecondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(ViewModeToggleButtonStyle())
     }
 
     // MARK: - Filter Bar
@@ -141,9 +233,11 @@ struct HistoryView: View {
                 .background(
                     Group {
                         if selectedPersonID != nil {
-                            AppTheme.primaryGradient
+                            Capsule()
+                                .fill(AppTheme.primaryGradient)
                         } else {
-                            AppTheme.buttonInactiveBackground
+                            Capsule()
+                                .fill(AppTheme.buttonInactiveBackground)
                         }
                     }
                 )
@@ -151,8 +245,6 @@ struct HistoryView: View {
                     Capsule()
                         .stroke(selectedPersonID != nil ? Color.clear : AppTheme.buttonInactiveBorder, lineWidth: 1)
                 )
-                .clipShape(Capsule())
-                .shadow(color: selectedPersonID != nil ? AppTheme.primaryGlow : .clear, radius: 8, x: 0, y: 2)
             }
             .buttonStyle(ScaleButtonStyle())
 
@@ -163,29 +255,103 @@ struct HistoryView: View {
 
     // MARK: - Doodle Grid
 
+    /// Calculates positions where inline ads should appear (after 9 items, then every 12)
+    private func inlineAdPositions(totalItems: Int) -> Set<Int> {
+        guard totalItems >= 9 else { return [] }
+        var positions: Set<Int> = [9]  // First ad after 9 items
+        var nextPosition = 21  // Then 21, 33, 45, etc.
+        while nextPosition <= totalItems {
+            positions.insert(nextPosition)
+            nextPosition += 12
+        }
+        return positions
+    }
+
     private var doodleGrid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
-                spacing: 8
-            ) {
-                ForEach(filteredDoodles) { doodle in
-                    DoodleGridItem(
-                        doodle: doodle,
-                        sender: getSender(for: doodle),
-                        isSentByMe: doodle.senderID == authManager.currentUserID
-                    )
-                    .onTapGesture {
-                        selectedDoodle = doodle
+        let adPositions = inlineAdPositions(totalItems: filteredDoodles.count)
+
+        return ScrollView {
+            LazyVStack(spacing: 4) {
+                // Group doodles into rows of 3
+                let rows = stride(from: 0, to: filteredDoodles.count, by: 3).map { startIndex in
+                    Array(filteredDoodles[startIndex..<min(startIndex + 3, filteredDoodles.count)])
+                }
+
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, rowDoodles in
+                    // Doodle row
+                    HStack(spacing: 4) {
+                        ForEach(rowDoodles) { doodle in
+                            let isSentByMe = doodle.senderID == authManager.currentUserID
+                            let displaySummary = getDisplayReactionSummary(for: doodle, isSentByMe: isSentByMe)
+                            let fullSummary = doodleReactionSummaries[doodle.id] ?? .empty
+                            DoodleGridItem(
+                                doodle: doodle,
+                                sender: getSender(for: doodle),
+                                isSentByMe: isSentByMe,
+                                reactionSummary: displaySummary,
+                                onTap: {
+                                    navigationManager.showGridOverlay(
+                                        doodle: doodle,
+                                        currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: fullSummary),
+                                        reactionSummary: isSentByMe ? fullSummary : nil,
+                                        onReaction: { emoji in
+                                            handleGridReaction(doodle: doodle, emoji: emoji)
+                                        },
+                                        onDismiss: {
+                                            Task { await loadReactions() }
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                        // Fill empty slots in incomplete rows
+                        if rowDoodles.count < 3 {
+                            ForEach(0..<(3 - rowDoodles.count), id: \.self) { _ in
+                                Color.clear
+                                    .aspectRatio(1, contentMode: .fit)
+                            }
+                        }
                     }
+
+                    // Insert inline ad after this row if position matches
+                    let itemsAfterThisRow = (rowIndex + 1) * 3
+                    if adPositions.contains(itemsAfterThisRow) {
+                        InlineBannerAdContainer()
+                    }
+
+                    // Load more trigger when near the end
+                    if rowIndex == rows.count - 1 && doodleManager.hasMore {
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear {
+                                Task { await loadMoreDoodles() }
+                            }
+                    }
+                }
+
+                // Loading indicator for pagination
+                if doodleManager.isLoadingMore {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.primaryStart))
+                        Spacer()
+                    }
+                    .padding(.vertical, 16)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.top, 1.6 * safeAreaTop + headerContentHeight + 16)
+            .padding(.bottom, 100)
         }
         .refreshable {
             await refreshDoodles()
         }
+    }
+
+    private func loadMoreDoodles() async {
+        guard let userID = authManager.currentUserID else { return }
+        await doodleManager.loadMoreDoodles(for: userID)
     }
 
     // MARK: - Empty State
@@ -289,6 +455,36 @@ struct HistoryView: View {
         return friendManager.friends.first { $0.id == doodle.senderID }
     }
 
+    /// Extract current user's emoji from a reaction summary (for received doodles)
+    private func getCurrentUserEmoji(from summary: ReactionSummary?) -> String? {
+        guard let userID = authManager.currentUserID,
+              let summary = summary else { return nil }
+        return summary.reactions.first { $0.userID == userID }?.emoji
+    }
+
+    /// Get reaction summary to display for a doodle in grid view
+    /// For sent doodles: show all aggregated reactions from recipients
+    /// For received doodles: show only the current user's own reaction
+    private func getDisplayReactionSummary(for doodle: Doodle, isSentByMe: Bool) -> ReactionSummary {
+        let summary = doodleReactionSummaries[doodle.id] ?? .empty
+
+        if isSentByMe {
+            // Sender sees all reactions from recipients
+            return summary
+        } else {
+            // Recipient sees only their own reaction
+            guard let userID = authManager.currentUserID else { return .empty }
+            if let myReaction = summary.reactions.first(where: { $0.userID == userID }) {
+                return ReactionSummary(
+                    topEmojis: [myReaction.emoji],
+                    totalCount: 1,
+                    reactions: [myReaction]
+                )
+            }
+            return .empty
+        }
+    }
+
     private func loadDoodles() async {
         guard let userID = authManager.currentUserID else { return }
         await doodleManager.loadDoodles(for: userID)
@@ -297,6 +493,29 @@ struct HistoryView: View {
     private func refreshDoodles() async {
         guard let userID = authManager.currentUserID else { return }
         await doodleManager.refreshDoodles(for: userID)
+        // Force reload on pull-to-refresh
+        await loadReactions(forceReload: true)
+    }
+
+    /// Load reactions with debouncing - skips if loaded within 5 seconds unless forceReload is true
+    private func loadReactions(forceReload: Bool = false) async {
+        // Debounce: skip if loaded within last 5 seconds (unless forced)
+        if !forceReload, let lastLoad = lastReactionLoadTime {
+            let elapsed = Date().timeIntervalSince(lastLoad)
+            if elapsed < 5 {
+                print("HistoryView: Skipping reaction load (debounce, \(Int(elapsed))s since last load)")
+                return
+            }
+        }
+
+        let doodleIDs = doodleManager.allDoodles.map { $0.id }
+        guard !doodleIDs.isEmpty else { return }
+
+        // Only update if successful - preserve cache on error
+        if let summaries = await conversationManager.loadAggregatedReactionsForDoodles(doodleIDs: doodleIDs) {
+            doodleReactionSummaries = summaries
+            lastReactionLoadTime = Date()
+        }
     }
 
     private func tryOpenPendingDoodle() {
@@ -307,7 +526,19 @@ struct HistoryView: View {
 
         // Find and open the doodle
         if let doodle = doodleManager.allDoodles.first(where: { $0.id == pendingDoodleID }) {
-            selectedDoodle = doodle
+            let isSentByMe = doodle.senderID == authManager.currentUserID
+            let fullSummary = doodleReactionSummaries[doodle.id]
+            navigationManager.showGridOverlay(
+                doodle: doodle,
+                currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: fullSummary),
+                reactionSummary: isSentByMe ? fullSummary : nil,
+                onReaction: { emoji in
+                    handleGridReaction(doodle: doodle, emoji: emoji)
+                },
+                onDismiss: {
+                    Task { await loadReactions() }
+                }
+            )
             navigationManager.clearPendingDoodle()
         } else if !hasRetriedPendingDoodle {
             // Doodle not in local list yet — refresh from Supabase and retry once
@@ -316,6 +547,62 @@ struct HistoryView: View {
                 await loadDoodles()
             }
         }
+    }
+
+    private func handleGridReaction(doodle: Doodle, emoji: String) {
+        guard let userID = authManager.currentUserID,
+              let currentUser = userManager.currentUser else { return }
+
+        // Update local cache immediately for responsive UI
+        var summary = doodleReactionSummaries[doodle.id] ?? .empty
+        let existingReaction = summary.reactions.first { $0.userID == userID }
+
+        if existingReaction?.emoji == emoji {
+            // Toggle off - remove reaction
+            let updatedReactions = summary.reactions.filter { $0.userID != userID }
+            summary = buildSummary(from: updatedReactions, doodleID: doodle.id)
+        } else {
+            // Add/update reaction
+            var updatedReactions = summary.reactions.filter { $0.userID != userID }
+            let newReaction = AggregatedReaction(
+                doodleID: doodle.id,
+                userID: userID,
+                displayName: currentUser.displayName,
+                profileImageURL: currentUser.profileImageURL,
+                colorHex: currentUser.colorHex,
+                emoji: emoji
+            )
+            updatedReactions.append(newReaction)
+            summary = buildSummary(from: updatedReactions, doodleID: doodle.id)
+        }
+        doodleReactionSummaries[doodle.id] = summary
+
+        // Persist to server
+        Task {
+            await conversationManager.toggleReactionOnDoodle(
+                doodleID: doodle.id,
+                userID: userID,
+                emoji: emoji
+            )
+        }
+    }
+
+    /// Build a ReactionSummary from a list of reactions
+    private func buildSummary(from reactions: [AggregatedReaction], doodleID: UUID) -> ReactionSummary {
+        if reactions.isEmpty { return .empty }
+
+        var emojiCounts: [String: Int] = [:]
+        for reaction in reactions {
+            emojiCounts[reaction.emoji, default: 0] += 1
+        }
+        let sorted = emojiCounts.sorted { $0.value > $1.value }
+        let topEmojis = Array(sorted.prefix(3).map { $0.key })
+
+        return ReactionSummary(
+            topEmojis: topEmojis,
+            totalCount: reactions.count,
+            reactions: reactions
+        )
     }
 }
 
@@ -336,9 +623,11 @@ struct FilterPill: View {
                 .background(
                     Group {
                         if isSelected {
-                            AppTheme.primaryGradient
+                            Capsule()
+                                .fill(AppTheme.primaryGradient)
                         } else {
-                            AppTheme.buttonInactiveBackground
+                            Capsule()
+                                .fill(AppTheme.buttonInactiveBackground)
                         }
                     }
                 )
@@ -346,8 +635,6 @@ struct FilterPill: View {
                     Capsule()
                         .stroke(isSelected ? Color.clear : AppTheme.buttonInactiveBorder, lineWidth: 1)
                 )
-                .clipShape(Capsule())
-                .shadow(color: isSelected ? AppTheme.primaryGlow : .clear, radius: 8, x: 0, y: 2)
         }
         .buttonStyle(ScaleButtonStyle())
     }
@@ -359,25 +646,53 @@ struct DoodleGridItem: View {
     let doodle: Doodle
     let sender: User?
     let isSentByMe: Bool
+    let reactionSummary: ReactionSummary
+    let onTap: () -> Void
+
+    @State private var didLongPress = false
+    @State private var isHolding = false
+
+    /// Badge background color: subtle white for sent doodles (reactions from others), blue tint for received (my reaction)
+    private var badgeBackground: Color {
+        isSentByMe ? Color.white.opacity(0.5) : Color(hex: "0084FF").opacity(0.25)
+    }
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .bottomLeading) {
+            ZStack {
                 // Doodle image - use .fit to maintain proper alignment
                 CachedAsyncImage(urlString: doodle.imageURL)
                     .aspectRatio(contentMode: .fit)
-                .frame(width: geometry.size.width, height: geometry.size.width)
+                    .frame(width: geometry.size.width, height: geometry.size.width)
 
-                // Sender badge - match widget style
-                if let sender = sender {
-                    Text(sender.initials)
-                        .font(.custom("Avenir-Heavy", size: 8))
-                        .foregroundColor(.white)
-                        .frame(width: 20, height: 20)
-                        .background(Color(hex: sender.colorHex))
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                        .padding(6)
+                // Sender badge - bottom left (only for received doodles)
+                if !isSentByMe, let sender = sender {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text(sender.initials)
+                                .font(.custom("Avenir-Heavy", size: 8))
+                                .foregroundColor(.white)
+                                .frame(width: 20, height: 20)
+                                .background(Color(hex: sender.colorHex))
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                .padding(6)
+                            Spacer()
+                        }
+                    }
+                }
+
+                // Reaction badge - bottom right
+                if !reactionSummary.isEmpty {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            reactionBadge
+                                .padding(4)
+                        }
+                    }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.width)
@@ -387,8 +702,74 @@ struct DoodleGridItem: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(AppTheme.glassBorder, lineWidth: 1)
             )
+            .scaleEffect(isHolding ? 1.05 : 1.0)
+            .shadow(color: Color.black.opacity(isHolding ? 0.25 : 0), radius: isHolding ? 12 : 0, x: 0, y: isHolding ? 6 : 0)
+            .animation(.easeOut(duration: 0.35), value: isHolding)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onTap()
+            }
+            .onLongPressGesture(minimumDuration: 0.25, pressing: { isPressing in
+                if isPressing {
+                    didLongPress = false
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        isHolding = true
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        isHolding = false
+                    }
+                    if didLongPress {
+                        didLongPress = false
+                    }
+                }
+            }) {
+                // Triggers immediately when duration reached, while still holding
+                didLongPress = true
+                onTap()
+            }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// Aggregated reaction badge showing emojis and count
+    @ViewBuilder
+    private var reactionBadge: some View {
+        HStack(spacing: 1) {
+            // Show top emojis (up to 3)
+            ForEach(reactionSummary.topEmojis.prefix(3), id: \.self) { emoji in
+                Text(emoji)
+                    .font(.system(size: 11))  // Consistent font size
+            }
+
+            // Show count if 2+ reactions
+            if reactionSummary.totalCount > 1 {
+                Text("\(reactionSummary.totalCount)")
+                    .font(.custom("Avenir-Heavy", size: 9))
+                    .foregroundColor(AppTheme.textPrimary)
+            }
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .background(
+            Group {
+                if isSentByMe {
+                    // Sent doodles: frosted glass with white stroke (matches detail view)
+                    Capsule().fill(.ultraThinMaterial).opacity(0.8)
+                } else {
+                    // Received doodles: blue tint
+                    Capsule().fill(badgeBackground)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if isSentByMe {
+                    Capsule().stroke(Color.white.opacity(0.4), lineWidth: 1)
+                }
+            }
+        )
+        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
     }
 }
 
@@ -548,6 +929,16 @@ struct PersonFilterRow: View {
     }
 }
 
+// MARK: - View Mode Toggle Button Style
+
+struct ViewModeToggleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.85 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
 #Preview {
     HistoryView()
         .environmentObject(DoodleManager())
@@ -555,4 +946,5 @@ struct PersonFilterRow: View {
         .environmentObject(FriendManager())
         .environmentObject(UserManager())
         .environmentObject(NavigationManager())
+        .environmentObject(ConversationManager.shared)
 }
