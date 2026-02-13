@@ -112,9 +112,20 @@ struct HistoryView: View {
         .onChange(of: doodleManager.allDoodles) { _ in
             // Retry opening pending doodle after doodles load
             tryOpenPendingDoodle()
-            // Reload reactions when doodles change
+        }
+        .onChange(of: doodleManager.receivedDoodles.count) { newCount in
+            // Force reload reactions when new doodles arrive (bypasses debounce)
+            // This is critical for realtime updates to show immediately
+            print("HistoryView: receivedDoodles count changed to \(newCount), force reloading reactions")
             Task {
-                await loadReactions()
+                await loadReactions(forceReload: true)
+            }
+        }
+        .onChange(of: doodleManager.sentDoodles.count) { newCount in
+            // Force reload reactions when sent doodles change (user just sent a doodle)
+            print("HistoryView: sentDoodles count changed to \(newCount), force reloading reactions")
+            Task {
+                await loadReactions(forceReload: true)
             }
         }
         .onChange(of: viewMode) { newMode in
@@ -270,18 +281,19 @@ struct HistoryView: View {
                     // Doodle row
                     HStack(spacing: 4) {
                         ForEach(rowDoodles) { doodle in
-                            let summary = doodleReactionSummaries[doodle.id] ?? .empty
                             let isSentByMe = doodle.senderID == authManager.currentUserID
+                            let displaySummary = getDisplayReactionSummary(for: doodle, isSentByMe: isSentByMe)
+                            let fullSummary = doodleReactionSummaries[doodle.id] ?? .empty
                             DoodleGridItem(
                                 doodle: doodle,
                                 sender: getSender(for: doodle),
                                 isSentByMe: isSentByMe,
-                                reactionSummary: summary,
+                                reactionSummary: displaySummary,
                                 onTap: {
                                     navigationManager.showGridOverlay(
                                         doodle: doodle,
-                                        currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: summary),
-                                        reactionSummary: isSentByMe ? summary : nil,
+                                        currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: fullSummary),
+                                        reactionSummary: isSentByMe ? fullSummary : nil,
                                         onReaction: { emoji in
                                             handleGridReaction(doodle: doodle, emoji: emoji)
                                         },
@@ -450,6 +462,29 @@ struct HistoryView: View {
         return summary.reactions.first { $0.userID == userID }?.emoji
     }
 
+    /// Get reaction summary to display for a doodle in grid view
+    /// For sent doodles: show all aggregated reactions from recipients
+    /// For received doodles: show only the current user's own reaction
+    private func getDisplayReactionSummary(for doodle: Doodle, isSentByMe: Bool) -> ReactionSummary {
+        let summary = doodleReactionSummaries[doodle.id] ?? .empty
+
+        if isSentByMe {
+            // Sender sees all reactions from recipients
+            return summary
+        } else {
+            // Recipient sees only their own reaction
+            guard let userID = authManager.currentUserID else { return .empty }
+            if let myReaction = summary.reactions.first(where: { $0.userID == userID }) {
+                return ReactionSummary(
+                    topEmojis: [myReaction.emoji],
+                    totalCount: 1,
+                    reactions: [myReaction]
+                )
+            }
+            return .empty
+        }
+    }
+
     private func loadDoodles() async {
         guard let userID = authManager.currentUserID else { return }
         await doodleManager.loadDoodles(for: userID)
@@ -462,12 +497,12 @@ struct HistoryView: View {
         await loadReactions(forceReload: true)
     }
 
-    /// Load reactions with debouncing - skips if loaded within 30 seconds unless forceReload is true
+    /// Load reactions with debouncing - skips if loaded within 5 seconds unless forceReload is true
     private func loadReactions(forceReload: Bool = false) async {
-        // Debounce: skip if loaded within last 30 seconds (unless forced)
+        // Debounce: skip if loaded within last 5 seconds (unless forced)
         if !forceReload, let lastLoad = lastReactionLoadTime {
             let elapsed = Date().timeIntervalSince(lastLoad)
-            if elapsed < 30 {
+            if elapsed < 5 {
                 print("HistoryView: Skipping reaction load (debounce, \(Int(elapsed))s since last load)")
                 return
             }
@@ -492,11 +527,11 @@ struct HistoryView: View {
         // Find and open the doodle
         if let doodle = doodleManager.allDoodles.first(where: { $0.id == pendingDoodleID }) {
             let isSentByMe = doodle.senderID == authManager.currentUserID
-            let summary = doodleReactionSummaries[doodle.id]
+            let fullSummary = doodleReactionSummaries[doodle.id]
             navigationManager.showGridOverlay(
                 doodle: doodle,
-                currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: summary),
-                reactionSummary: isSentByMe ? summary : nil,
+                currentEmoji: isSentByMe ? nil : getCurrentUserEmoji(from: fullSummary),
+                reactionSummary: isSentByMe ? fullSummary : nil,
                 onReaction: { emoji in
                     handleGridReaction(doodle: doodle, emoji: emoji)
                 },
@@ -704,7 +739,7 @@ struct DoodleGridItem: View {
             // Show top emojis (up to 3)
             ForEach(reactionSummary.topEmojis.prefix(3), id: \.self) { emoji in
                 Text(emoji)
-                    .font(.system(size: reactionSummary.totalCount == 1 ? 12 : 10))
+                    .font(.system(size: 11))  // Consistent font size
             }
 
             // Show count if 2+ reactions
@@ -714,7 +749,7 @@ struct DoodleGridItem: View {
                     .foregroundColor(AppTheme.textPrimary)
             }
         }
-        .padding(.horizontal, reactionSummary.totalCount == 1 ? 4 : 6)
+        .padding(.horizontal, 5)
         .padding(.vertical, 3)
         .background(
             Group {
